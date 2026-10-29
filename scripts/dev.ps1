@@ -1,4 +1,4 @@
-# Run an npm command for the add-on inside node:22-alpine, so Node isn't needed on this PC.
+# Run an npm command for the add-on inside node:24-alpine, so Node isn't needed on this PC.
 # node_modules lives in a Docker volume to keep it out of OneDrive.
 #   .\scripts\dev.ps1 install
 #   .\scripts\dev.ps1 test
@@ -11,7 +11,7 @@ $common = @('--rm', '-v', "${addon}:/src", '-v', 'zigbee_floorplan_node_modules:
 
 if ($NpmArgs.Count -eq 1 -and $NpmArgs[0] -eq 'serve') {
     docker run @common -it -p 8099:8099 -e FIXTURE_DIR=/src/test/fixtures -e DATA_DIR=/src/.data -e PORT=8099 `
-        node:22-alpine sh -c 'npm run build && node dist/server/index.js'
+        node:24-alpine sh -c 'npm run build && node dist/server/index.js'
 } else {
-    docker run @common node:22-alpine npm @NpmArgs
+    docker run @common node:24-alpine npm @NpmArgs
 }

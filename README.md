@@ -30,5 +30,13 @@ Build the add-on image for a Raspberry Pi 4:
 
 ```powershell
 cd zigbee_floorplan
-docker buildx build --platform linux/arm64 --build-arg BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.21 -t zigbee_floorplan:aarch64-test --load .
+docker buildx build --platform linux/arm64 -t zigbee_floorplan:aarch64-test --load .
 ```
+
+## Releasing
+
+GitHub Actions ([build.yaml](.github/workflows/build.yaml)) tests every push and
+publishes `ghcr.io/joeyjojo747/zigbee-floorplan` for amd64 and aarch64, tagged with
+the `version` in `zigbee_floorplan/config.yaml`. Home Assistant pulls that tag, so to
+release: bump the version, add a CHANGELOG entry and push. Wait for the workflow to
+finish before updating in Home Assistant.
