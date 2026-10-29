@@ -1,0 +1,21 @@
+name: Zigbee Floorplan
+version: "0.1.0"
+slug: zigbee_floorplan
+description: Show your Zigbee2MQTT mesh on your house floorplan
+url: https://github.com/joeyjojo747/ha-zigbee-floorplan
+arch:
+  - aarch64
+  - amd64
+init: false
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:floor-plan
+panel_title: Zigbee Floorplan
+services:
+  - mqtt:need
+options:
+  base_topic: zigbee2mqtt
+  scan_timeout_seconds: 300
+schema:
+  base_topic: str
+  scan_timeout_seconds: int(30,1800)
