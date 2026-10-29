@@ -1,7 +1,12 @@
 // Add-on entry point: HTTP API + web UI on the ingress port.
+import { dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
+import {
+  addFloor, deleteFloor, IMAGE_TYPES, LayoutError, removePlacement, reorderFloors, setFloorImage, setPlacement, updateFloor,
+  type Layout,
+} from './layout.js';
 import { buildNetwork } from './networkmap.js';
 import { Store, type ScanRecord } from './store.js';
 import { FixtureSource, MqttSource, type Z2mSource } from './z2m.js';
@@ -67,6 +72,91 @@ app.post('/api/scan', async (_req, reply) => {
   if (!source.connected()) return reply.code(503).send({ error: 'Not connected to MQTT' });
   void runScan();
   return reply.code(202).send({ started: true });
+});
+
+// ---- Layout -------------------------------------------------------------
+
+let layout: Layout = await store.loadLayout();
+let layoutQueue: Promise<unknown> = Promise.resolve();
+
+/** Applies a change to a copy of the layout and saves it; changes run one at a time. */
+function changeLayout<T>(change: (draft: Layout) => T | Promise<T>): Promise<T> {
+  const run = layoutQueue.then(async () => {
+    const draft = structuredClone(layout);
+    const result = await change(draft);
+    await store.saveLayout(draft);
+    layout = draft;
+    return result;
+  });
+  layoutQueue = run.catch(() => undefined);
+  return run;
+}
+
+app.setErrorHandler((err, _req, reply) => {
+  if (err instanceof LayoutError) return reply.code(err.statusCode).send({ error: err.message });
+  const statusCode = (err as { statusCode?: number }).statusCode ?? 500;
+  if (statusCode >= 500) app.log.error(err);
+  return reply.code(statusCode).send({ error: (err as Error).message });
+});
+
+// Floor images are sent as the raw request body.
+app.addContentTypeParser(Object.keys(IMAGE_TYPES), { parseAs: 'buffer', bodyLimit: 15 * 1024 * 1024 }, (_req, body, done) =>
+  done(null, body),
+);
+
+type FloorParams = { Params: { id: string } };
+
+app.get('/api/layout', async () => layout);
+
+app.post<{ Body: { name?: unknown } }>('/api/floors', async (req, reply) => {
+  const floor = await changeLayout((draft) => addFloor(draft, req.body?.name));
+  return reply.code(201).send(floor);
+});
+
+app.patch<FloorParams & { Body: { name?: unknown; pxPerMetre?: unknown } }>('/api/floors/:id', async (req) =>
+  changeLayout((draft) => updateFloor(draft, req.params.id, req.body ?? {})),
+);
+
+app.put<{ Body: { ids?: unknown } }>('/api/floors/order', async (req) => {
+  await changeLayout((draft) => reorderFloors(draft, req.body?.ids));
+  return layout;
+});
+
+app.delete<FloorParams>('/api/floors/:id', async (req, reply) => {
+  const image = await changeLayout((draft) => deleteFloor(draft, req.params.id));
+  if (image) await store.deleteFloorImage(image);
+  return reply.code(204).send();
+});
+
+app.put<FloorParams & { Querystring: { width?: string; height?: string }; Body: Buffer }>('/api/floors/:id/image', async (req) => {
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) throw new LayoutError(400, 'Send the image as the request body');
+  return changeLayout(async (draft) => {
+    const { floor, replaced } = setFloorImage(draft, req.params.id, {
+      contentType: req.headers['content-type'] ?? '',
+      width: Number(req.query.width),
+      height: Number(req.query.height),
+    });
+    await store.saveFloorImage(floor.image!, req.body);
+    if (replaced) await store.deleteFloorImage(replaced);
+    return floor;
+  });
+});
+
+app.get<FloorParams>('/api/floors/:id/image', async (req, reply) => {
+  const floor = layout.floors.find((f) => f.id === req.params.id);
+  if (!floor?.image) throw new LayoutError(404, 'This level has no image');
+  // The UI adds ?v=<imageVersion>, so a given URL never changes content.
+  const path = store.floorImagePath(floor.image);
+  return reply.sendFile(basename(path), dirname(path), { maxAge: '365d', immutable: true });
+});
+
+app.put<{ Params: { ieee: string }; Body: { floorId?: unknown; x?: unknown; y?: unknown } }>('/api/placements/:ieee', async (req) =>
+  changeLayout((draft) => setPlacement(draft, req.params.ieee, req.body ?? {})),
+);
+
+app.delete<{ Params: { ieee: string } }>('/api/placements/:ieee', async (req, reply) => {
+  await changeLayout((draft) => removePlacement(draft, req.params.ieee));
+  return reply.code(204).send();
 });
 
 await app.register(fastifyStatic, { root: fileURLToPath(new URL('../web', import.meta.url)) });

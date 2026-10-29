@@ -57,8 +57,8 @@ All browser URLs are relative so the UI works behind the ingress path prefix.
   `source` = the neighbour, `lqi` = how well the reporter hears the neighbour,
   `relationship` = the neighbour's role relative to the reporter
   (0 parent, 1 child, 2 sibling, 3 none, 4 previous child).
-- Links are asymmetric (coordinator hears `workshop_presence` at 24, the reverse is 101)
-  and sometimes duplicated.
+- Links are asymmetric (`workshop_presence` hears the coordinator at 24, the coordinator
+  hears it at 101) and sometimes duplicated.
 - `lqi: 0` is common for sleepy end devices — it means "not measured", not "dead".
 - `lastSeen` is unreliable for some devices (coordinator, `tuya_smartplug_10`).
 
@@ -92,9 +92,13 @@ an "↑ / ↓ level" badge.
 
 ## Storage (`/data`)
 
-- `layout.json` — `{ floors: [{id, name, order, image, pxPerMetre}], placements: {ieee: {floorId, x, y}} }`
+- `layout.json` — `{ floors: [{id, name, image, width, height, pxPerMetre, imageVersion}], placements: {ieee: {floorId, x, y}} }`
+  (floors in display order; image size is measured by the browser on upload)
 - `floors/<id>.<ext>` — uploaded images
-- `scans/latest.json` — last raw scan; history (SQLite) comes in phase 2.
+- `scans/latest.json` — last raw scan; history (SQLite) comes later.
+
+Layout changes are serialised and applied to a copy, so a failed change never
+leaves a half-written layout. Rules live in `src/server/layout.ts` (pure, tested).
 
 ## HTTP API
 
@@ -103,26 +107,40 @@ an "↑ / ↓ level" badge.
 | GET | `api/status` | MQTT connection, last scan time, scan in progress |
 | GET | `api/network` | normalised network from the latest scan |
 | POST | `api/scan` | trigger a scan (one at a time) |
+| GET | `api/layout` | levels and placements |
+| POST | `api/floors` | add a level `{name}` |
+| PATCH | `api/floors/:id` | rename / set scale `{name?, pxPerMetre?}` |
+| PUT | `api/floors/order` | reorder `{ids}` |
+| DELETE | `api/floors/:id` | delete a level and its placements |
+| PUT | `api/floors/:id/image?width&height` | upload image (raw JPEG/PNG/WebP body) |
+| GET | `api/floors/:id/image?v=` | the image (cached; `v` is `imageVersion`) |
+| PUT / DELETE | `api/placements/:ieee` | place `{floorId, x, y}` / unplace a device |
 
-Layout and floor-image endpoints arrive with the editor (phase 1).
+## Editor (UI)
+
+- One SVG per level in image-pixel units: image, links, markers. Markers and labels are
+  scaled by the current zoom so they keep a constant on-screen size.
+- Place: pick a device in the tray, click the plan. Move: drag. Escape cancels.
+- Links are drawn when both ends are on the shown level; links to other levels show as
+  a "⇅ n" badge and in the details panel, where clicking jumps to that level.
+- Scale tool: two clicks plus a known distance gives `pxPerMetre`.
 
 ## Phases
 
-1. **Scaffold (this step)** — add-on packaging, MQTT client, scan + normalised
-   network API, placeholder UI listing devices and links, tests on real data.
-2. **Floorplan MVP** — floor upload and scale, drag-to-place with unplaced tray,
-   links drawn and coloured, device detail panel.
-3. **Usability** — level switcher and cross-level stubs, HA-area pre-sorting,
-   scheduled scans, history, filters, PNG export.
+1. **Scaffold** (0.1.x) — add-on packaging, MQTT client, scan + normalised
+   network API, device and link tables, tests on real data, prebuilt images.
+2. **Floorplan editor** (0.2.0) — levels with images and scale, tray and drag-to-place,
+   links drawn and coloured with filters, device detail panel, cross-level links.
+3. **Usability** — HA-area pre-sorting, scheduled scans, history, PNG export,
+   label decluttering, pinch zoom.
 4. **Insights** — weak-link and single-point-of-failure flags, LQI vs distance,
    estimated coverage overlay, suggested router spots, MQTT discovery sensors.
 
 ## Development
 
-- No Node on the dev PC: all npm commands run in `node:22-alpine` via Docker
+- No Node on the dev PC: all npm commands run in `node:24-alpine` via Docker
   (`scripts/dev.ps1`), with `node_modules` in a Docker volume (keeps it out of OneDrive).
 - Offline mode: with `FIXTURE_DIR` set and no `MQTT_HOST`, the server serves the
   captured scan, so the UI can be developed without touching the real mesh.
-- The Supervisor builds the image on the Pi from the Dockerfile. Prebuilt images
-  on GHCR (GitHub Actions) are a later improvement.
+- GitHub Actions builds multi-arch images to GHCR; the Pi pulls them (see README).
 - The add-on store can only add **public** GitHub repositories.

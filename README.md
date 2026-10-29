@@ -4,8 +4,9 @@ A Home Assistant add-on that shows your Zigbee2MQTT mesh on your house floorplan
 place each device where it really is and see the links between them, coloured by
 signal quality.
 
-> Status: early scaffold (0.1.0). It scans the network and lists devices and links;
-> the floorplan editor is next. See [docs/design.md](docs/design.md).
+> Status: 0.2.0 — floorplan editor: levels with images and scale, drag-and-drop
+> placement, links coloured by quality. See [docs/design.md](docs/design.md) for the plan
+> and [DOCS.md](zigbee_floorplan/DOCS.md) for how to use it.
 
 ## Install
 
