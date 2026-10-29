@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+
+- Add-on icon and logo in the add-on store.
+
 ## 0.4.0
 
 - All levels now share one panel with one pan and zoom. The level tabs pick the level
