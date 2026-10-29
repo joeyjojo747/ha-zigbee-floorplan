@@ -159,6 +159,15 @@ input[type='checkbox'] { padding: 0; }
 .align-handle.nw, .align-handle.se { cursor: nwse-resize; }
 .align-handle.ne, .align-handle.sw { cursor: nesw-resize; }
 
+.wall { stroke: var(--accent); stroke-opacity: 0.55; stroke-linecap: square; cursor: pointer; }
+.wall.selected { stroke: var(--poor); stroke-opacity: 0.85; }
+.wall.drawing { stroke-opacity: 0.8; pointer-events: none; }
+.wall-delete { position: absolute; left: 12px; top: 12px; }
+
+.canvas.three canvas { display: block; touch-action: none; }
+.three-label { position: absolute; pointer-events: none; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; font-size: 12px; }
+.three-help { position: absolute; left: 12px; bottom: 6px; margin: 0; pointer-events: none; }
+
 .view-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; }
 .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
 .segmented button { border-radius: 0; padding: 4px 10px; background: var(--surface); color: var(--text); }

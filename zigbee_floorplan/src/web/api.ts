@@ -1,8 +1,8 @@
 // Typed calls to the add-on API. All URLs are relative: the page is served under the HA ingress prefix.
-import type { Floor, Layout, Placement } from '../server/layout';
+import type { Floor, Layout, Placement, Wall } from '../server/layout';
 import type { Network } from '../server/networkmap';
 
-export type { Floor, Layout, Placement };
+export type { Floor, Layout, Placement, Wall };
 export type { Network, NetworkDevice, NetworkLink, Quality } from '../server/networkmap';
 
 export interface Status {
@@ -37,6 +37,7 @@ export const api = {
   addFloor: (name: string) => request<Floor>('POST', 'api/floors', { name }),
   updateFloor: (id: string, patch: { name?: string; pxPerMetre?: number | null; x?: number; y?: number; floorHeight?: number }) => request<Floor>('PATCH', `api/floors/${id}`, patch),
   reorderFloors: (ids: string[]) => request<Layout>('PUT', 'api/floors/order', { ids }),
+  setWalls: (id: string, walls: Wall[]) => request<Wall[]>('PUT', `api/floors/${id}/walls`, walls),
   deleteFloor: (id: string) => request<void>('DELETE', `api/floors/${id}`),
   uploadFloorImage: async (id: string, file: File) => {
     const { width, height } = await imageSize(file);

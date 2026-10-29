@@ -19,9 +19,21 @@ export interface Floor {
   y: number;
   /** Floor-to-floor height in metres; 0 puts the level above at the same elevation. */
   floorHeight: number;
+  /** Walls drawn on the plan, in image pixels. */
+  walls: Wall[];
+}
+
+/** A straight wall: its centreline's ends and its thickness, in image pixels. */
+export interface Wall {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  t: number;
 }
 
 export const DEFAULT_FLOOR_HEIGHT = 2.4;
+export const MAX_WALLS = 2000;
 
 /** Position as fractions (0–1) of the floor image, so a sharper image keeps placements. */
 export interface Placement {
@@ -47,11 +59,11 @@ export const IMAGE_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image
 
 export const emptyLayout = (): Layout => ({ floors: [], placements: {} });
 
-/** Fills in fields added since the layout was saved (position and height arrived in 0.4.0). */
+/** Fills in fields added since the layout was saved (position and height in 0.4.0, walls in 0.5.0). */
 export function normaliseLayout(layout: Layout): Layout {
   return {
     ...layout,
-    floors: layout.floors.map((floor) => ({ ...floor, x: floor.x ?? 0, y: floor.y ?? 0, floorHeight: floor.floorHeight ?? DEFAULT_FLOOR_HEIGHT })),
+    floors: layout.floors.map((floor) => ({ ...floor, x: floor.x ?? 0, y: floor.y ?? 0, floorHeight: floor.floorHeight ?? DEFAULT_FLOOR_HEIGHT, walls: floor.walls ?? [] })),
   };
 }
 
@@ -85,7 +97,7 @@ function floorHeight(value: unknown): number {
 export function addFloor(layout: Layout, name: unknown): Floor {
   const floor: Floor = {
     id: crypto.randomUUID().slice(0, 8), name: cleanName(name), image: null, width: null, height: null, pxPerMetre: null, imageVersion: 0,
-    x: 0, y: 0, floorHeight: DEFAULT_FLOOR_HEIGHT,
+    x: 0, y: 0, floorHeight: DEFAULT_FLOOR_HEIGHT, walls: [],
   };
   layout.floors.push(floor);
   return floor;
@@ -135,7 +147,12 @@ export function setFloorImage(layout: Layout, id: string, image: { contentType: 
   if (!ext) throw new LayoutError(400, 'Image must be JPEG, PNG or WebP');
   const width = positive(image.width, 'Image width');
   const height = positive(image.height, 'Image height');
-  if (floor.pxPerMetre !== null && floor.width) floor.pxPerMetre *= width / floor.width;
+  if (floor.width) {
+    // Same plan, new size: keep the scale and the walls lined up with it.
+    const f = width / floor.width;
+    if (floor.pxPerMetre !== null) floor.pxPerMetre *= f;
+    floor.walls = floor.walls.map((w) => ({ x1: w.x1 * f, y1: w.y1 * f, x2: w.x2 * f, y2: w.y2 * f, t: w.t * f }));
+  }
   const previous = floor.image;
   floor.image = `${floor.id}.${ext}`;
   floor.width = width;
@@ -153,6 +170,20 @@ export function setPlacement(layout: Layout, ieee: string, placement: { floorId?
   }
   const clamp = (v: number) => Math.min(1, Math.max(0, v));
   return (layout.placements[ieee] = { floorId, x: clamp(x), y: clamp(y) });
+}
+
+/** Replaces the level's walls. */
+export function setWalls(layout: Layout, id: string, walls: unknown): Wall[] {
+  const floor = findFloor(layout, id);
+  if (!Array.isArray(walls)) throw new LayoutError(400, 'Walls must be a list');
+  if (walls.length > MAX_WALLS) throw new LayoutError(400, `A level can have at most ${MAX_WALLS} walls`);
+  const num = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
+  const clean = walls.map((w): Wall => {
+    const { x1, y1, x2, y2, t } = (w ?? {}) as Record<string, unknown>;
+    if (![x1, y1, x2, y2, t].every(num) || !((t as number) > 0)) throw new LayoutError(400, 'Walls need numeric ends and a positive thickness');
+    return { x1, y1, x2, y2, t } as Wall;
+  });
+  return (floor.walls = clean);
 }
 
 export function removePlacement(layout: Layout, ieee: string): void {

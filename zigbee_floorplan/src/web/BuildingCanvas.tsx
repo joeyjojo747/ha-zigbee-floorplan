@@ -2,9 +2,9 @@
 // flattened and lifted by its elevation. Pan by dragging the background, zoom with the
 // wheel; markers and labels keep a constant on-screen size.
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { floorImageUrl, type Floor, type NetworkDevice, type NetworkLink, type Placement } from './api';
+import { floorImageUrl, type Floor, type NetworkDevice, type NetworkLink, type Placement, type Wall } from './api';
 import {
-  buildingToImage, clampFraction, elevations, floorRect, floorTransform, imageToBuilding, isSized, placementPoint, project,
+  buildingToImage, clampFraction, elevations, floorRect, floorTransform, imageToBuilding, isSized, metresPerPx, placementPoint, project,
   rectTransform, resizeFromCorner, type Corner, type Point, type Rect, type SizedFloor, type ViewMode,
 } from './geometry';
 
@@ -39,6 +39,9 @@ interface Props {
   /** Draft position of the active level (building metres) while aligning, else null. */
   align: Rect | null;
   onAlign: (rect: Rect) => void;
+  /** Wall mode: the active level's walls are shown and edited instead of devices and links. */
+  wallEdit?: boolean;
+  onWalls?: (floorId: string, walls: Wall[]) => void;
 }
 
 type View = { x: number; y: number; w: number; h: number };
@@ -46,7 +49,8 @@ type Gesture =
   | { kind: 'pan'; start: Point; view: View; moved: boolean; ieee: string | null }
   | { kind: 'drag'; ieee: string; start: Point; moved: boolean }
   | { kind: 'align-move'; start: Point; rect: Rect; moved: boolean }
-  | { kind: 'align-resize'; corner: Corner; start: Point; rect: Rect; moved: boolean };
+  | { kind: 'align-resize'; corner: Corner; start: Point; rect: Rect; moved: boolean }
+  | { kind: 'wall'; start: Point; moved: boolean; from: Point };
 
 const RADIUS = { Coordinator: 11, Router: 9, EndDevice: 7 } as const;
 const NICE_METRES = [0.5, 1, 2, 5, 10, 20, 50, 100];
@@ -54,6 +58,7 @@ const CORNERS: Corner[] = ['nw', 'ne', 'sw', 'se'];
 
 export function BuildingCanvas(props: Props) {
   const { floors, active, mode, others, devices, links, placements, filters, selected, placing, scalePoints, align } = props;
+  const wallEdit = !!props.wallEdit && mode === '2d';
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -81,6 +86,33 @@ export function BuildingCanvas(props: Props) {
   const [gesture, setGesture] = useState<Gesture | null>(null);
   const [drag, setDrag] = useState<Point | null>(null);
   const [hover, setHover] = useState<Point | null>(null);
+  const [selectedWall, setSelectedWall] = useState<number | null>(null);
+  /** Far end (image pixels) of the wall being drawn. */
+  const [wallEnd, setWallEnd] = useState<Point | null>(null);
+
+  // A new set of walls (detected, cleared, or another level) makes the old index meaningless.
+  const selectAfterSave = useRef<number | null>(null);
+  useEffect(() => {
+    setSelectedWall(selectAfterSave.current);
+    selectAfterSave.current = null;
+  }, [active.id, wallEdit, active.walls]);
+
+  const deleteWall = () => {
+    if (selectedWall === null) return;
+    props.onWalls?.(active.id, active.walls.filter((_, i) => i !== selectedWall));
+    setSelectedWall(null);
+  };
+
+  useEffect(() => {
+    if (!wallEdit) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      const typing = t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement || t.isContentEditable;
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !typing) deleteWall();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   // Refit when the levels shown, the view mode or an image change. Not when only the active level
   // changes while every level is shown (selecting a device elsewhere), nor when a level moves
@@ -127,13 +159,25 @@ export function BuildingCanvas(props: Props) {
   });
 
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
-    if (e.button !== 0) return;
+    // In wall mode the left button draws, so the right or middle button pans.
+    const panButton = wallEdit && e.button !== 0;
+    if (e.button !== 0 && !panButton) return;
     svgRef.current!.setPointerCapture(e.pointerId);
     const start = { x: e.clientX, y: e.clientY };
     const target = e.target as Element;
     const corner = target.closest('[data-corner]')?.getAttribute('data-corner') as Corner | undefined;
     const marker = target.closest('[data-ieee]')?.getAttribute('data-ieee') ?? null;
-    if (align && corner) {
+    const wall = target.closest('[data-wall]')?.getAttribute('data-wall');
+    if (wallEdit && !panButton) {
+      if (wall !== undefined && wall !== null) {
+        setSelectedWall(Number(wall));
+      } else {
+        setSelectedWall(null);
+        setGesture({ kind: 'wall', start, moved: false, from: buildingToImage(active, toView(e.clientX, e.clientY)) });
+      }
+    } else if (panButton) {
+      setGesture({ kind: 'pan', start, view, moved: false, ieee: null });
+    } else if (align && corner) {
       setGesture({ kind: 'align-resize', corner, start, rect: align, moved: false });
     } else if (align && target.closest('.align-frame')) {
       setGesture({ kind: 'align-move', start, rect: align, moved: false });
@@ -156,6 +200,8 @@ export function BuildingCanvas(props: Props) {
       setView({ ...gesture.view, x: gesture.view.x - dx * k, y: gesture.view.y - dy * k });
     } else if (gesture.kind === 'drag') {
       setDrag(clampFraction(active, toView(e.clientX, e.clientY)));
+    } else if (gesture.kind === 'wall') {
+      setWallEnd(snapWall(gesture.from, buildingToImage(active, toView(e.clientX, e.clientY)), e.shiftKey));
     } else if (gesture.kind === 'align-move') {
       props.onAlign({ ...gesture.rect, x: gesture.rect.x + dx * k, y: gesture.rect.y + dy * k });
     } else {
@@ -166,7 +212,15 @@ export function BuildingCanvas(props: Props) {
   const onPointerUp = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (!gesture) return;
     const p = toView(e.clientX, e.clientY);
-    if (gesture.kind === 'drag') {
+    if (gesture.kind === 'wall') {
+      // At least a few screen pixels long, so a stray click doesn't add a dot.
+      if (gesture.moved && wallEnd && Math.hypot(wallEnd.x - gesture.from.x, wallEnd.y - gesture.from.y) * metresPerPx(active) > 4 * k) {
+        const walls = [...active.walls, { x1: gesture.from.x, y1: gesture.from.y, x2: wallEnd.x, y2: wallEnd.y, t: newWallThickness(active) }];
+        props.onWalls?.(active.id, walls);
+        selectAfterSave.current = walls.length - 1;
+      }
+      setWallEnd(null);
+    } else if (gesture.kind === 'drag') {
       if (gesture.moved && drag) props.onPlace(gesture.ieee, active.id, drag.x, drag.y);
       else props.onSelect(gesture.ieee);
     } else if (gesture.kind === 'pan' && !gesture.moved) {
@@ -214,7 +268,7 @@ export function BuildingCanvas(props: Props) {
 
   const name = (ieee: string) => devices.get(ieee)?.name ?? ieee;
   const involvesSelected = (l: NetworkLink) => selected !== null && (l.a === selected || l.b === selected);
-  const cursor = (placing || scalePoints) && edit ? 'crosshair' : gesture?.kind === 'pan' && gesture.moved ? 'grabbing' : 'grab';
+  const cursor = ((placing || scalePoints) && edit) || (wallEdit && gesture?.kind !== 'pan') ? 'crosshair' : gesture?.kind === 'pan' && gesture.moved ? 'grabbing' : 'grab';
 
   return (
     <div className="canvas" ref={containerRef}>
@@ -228,6 +282,7 @@ export function BuildingCanvas(props: Props) {
         onPointerUp={onPointerUp}
         onPointerCancel={() => { setGesture(null); setDrag(null); }}
         onPointerLeave={() => setHover(null)}
+        onContextMenu={(e) => wallEdit && e.preventDefault()}
       >
         {drawOrder.map((floor) => {
           const aligning = align && floor.id === active.id;
@@ -258,7 +313,7 @@ export function BuildingCanvas(props: Props) {
           </g>
         )}
 
-        {!align && (
+        {!align && !wallEdit && (
           <g className="links">
             {visibleLinks.map((l) => {
               const a = positions.get(l.a)!;
@@ -300,7 +355,7 @@ export function BuildingCanvas(props: Props) {
           </g>
         )}
 
-        {!align && (
+        {!align && !wallEdit && (
           <g className="markers">
             {[...positions].map(([ieee, p]) => {
               const device = devices.get(ieee);
@@ -332,6 +387,24 @@ export function BuildingCanvas(props: Props) {
           </g>
         )}
 
+        {wallEdit && (
+          <g className="walls" transform={floorTransform(active, z.get(active.id)!, '2d')}>
+            {active.walls.map((w, i) => (
+              <line
+                key={i}
+                data-wall={i}
+                className={`wall${i === selectedWall ? ' selected' : ''}`}
+                x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2}
+                // At least 6 screen pixels wide so thin walls can still be clicked.
+                strokeWidth={Math.max(w.t, (6 * k) / metresPerPx(active))}
+              />
+            ))}
+            {gesture?.kind === 'wall' && wallEnd && (
+              <line className="wall drawing" x1={gesture.from.x} y1={gesture.from.y} x2={wallEnd.x} y2={wallEnd.y} strokeWidth={newWallThickness(active)} />
+            )}
+          </g>
+        )}
+
         {placing && hover && edit && (
           <circle className="ghost" cx={hover.x} cy={hover.y} r={RADIUS[devices.get(placing)?.type ?? 'EndDevice'] * k} strokeWidth={2 * k} />
         )}
@@ -344,6 +417,9 @@ export function BuildingCanvas(props: Props) {
       </div>
 
       {edit && active.pxPerMetre && <ScaleBar metresPerScreenPx={k} />}
+      {wallEdit && selectedWall !== null && selectedWall < active.walls.length && (
+        <button className="wall-delete danger" onClick={deleteWall}>Delete wall</button>
+      )}
     </div>
   );
 }
@@ -357,6 +433,18 @@ function ScaleBar({ metresPerScreenPx }: { metresPerScreenPx: number }) {
       <span>{metres} m</span>
     </div>
   );
+}
+
+/** Keeps a new wall horizontal or vertical, unless Shift is held. */
+function snapWall(from: Point, to: Point, free: boolean): Point {
+  if (free) return to;
+  return Math.abs(to.x - from.x) >= Math.abs(to.y - from.y) ? { x: to.x, y: from.y } : { x: from.x, y: to.y };
+}
+
+/** Thickness for a hand-drawn wall: the level's typical wall, or a thin default. */
+function newWallThickness(floor: SizedFloor): number {
+  const ts = floor.walls.map((w) => w.t).sort((a, b) => a - b);
+  return ts.length ? ts[Math.floor(ts.length / 2)] : Math.max(3, floor.width / 150);
 }
 
 /** Whether the legend's filters let this link be drawn. */

@@ -1,6 +1,7 @@
 // Right-hand panel: the selected device's details, or the device tray for placing devices.
 import { useState } from 'react';
 import { linkDistance } from './geometry';
+import { linkObstacles } from './walls';
 import type { Floor, NetworkDevice, NetworkLink, Placement } from './api';
 
 const formatTime = (ms: number | null) => (ms ? new Date(ms).toLocaleString() : 'never');
@@ -116,6 +117,10 @@ export function DeviceDetails(props: {
           const role = link.parent === ieee ? 'child' : link.child === ieee ? 'parent' : 'neighbour';
           const otherFloor = floors.find((f) => f.id === placements[other]?.floorId);
           const metres = linkDistance(floors, placements, ieee, other);
+          const obstacles = linkObstacles(floors, placements, ieee, other);
+          const through = !obstacles ? null : 'walls' in obstacles
+            ? (floor?.walls.length ? `${obstacles.walls} wall${obstacles.walls === 1 ? '' : 's'}` : null)
+            : `${obstacles.floors} floor${obstacles.floors === 1 ? '' : 's'}`;
           const heard = (reporter: string) => link.reports.find((r) => r.reporter === reporter);
           const fmt = (lqi: number | null | undefined) => (lqi === undefined ? '—' : lqi ?? '?');
           return (
@@ -128,6 +133,7 @@ export function DeviceDetails(props: {
                   <span className="muted small">
                     hears it {fmt(heard(ieee)?.lqi)} · heard by it {fmt(heard(other)?.lqi)}
                     {metres !== null && ` · ${metres.toFixed(1)} m`}
+                    {through && ` · through ${through}`}
                     {otherFloor && otherFloor.id !== floor?.id && ` · on ${otherFloor.name}`}
                     {!otherFloor && ' · not placed'}
                   </span>

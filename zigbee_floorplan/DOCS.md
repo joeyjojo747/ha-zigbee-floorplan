@@ -28,6 +28,11 @@ Shows your Zigbee2MQTT network on your floorplan.
 5. **Place devices.** Click a device in the **Not placed** list, then click where it is
    on the plan. Drag a device to move it. Select a device and click **Move** to put it on
    another level.
+6. **Walls** (optional). On a level, click **Walls**, then **Detect walls**: the add-on
+   finds the thick straight lines on the plan (in your browser; nothing is uploaded).
+   Click a wrong one and press Delete (or **Delete wall**); drag to draw a missing one,
+   holding Shift for an angled wall. Right-drag pans while you're in wall mode. Walls
+   are shown in 3D and counted for each link.
 
 ## Reading the map
 
@@ -40,12 +45,14 @@ Shows your Zigbee2MQTT network on your floorplan.
 - **Other levels** draws the other levels faint under the one you're on, with their
   devices and links, or hides them. When hidden, **⇅ n** next to a device means it has
   *n* links to devices on other levels.
-- **3D** stacks the levels by their heights, so links between floors show as lines
-  between the layers. Select, pan and zoom work in 3D; switch back to 2D to place, move,
-  align or set the scale.
+- **3D** shows a model of the building: each level's plan at its height, with its walls
+  standing and the devices and links in between. Drag to orbit, right-drag to pan,
+  scroll to zoom; hover a device for its name and click it to select it. Switch back to
+  2D to place, move, align, set the scale or edit walls.
 - **Click a device** to highlight its links and see each one with LQI in both directions
-  ("hears it" is how well this device hears the other), its role and the distance
-  (including the height between floors, once both levels have a scale).
+  ("hears it" is how well this device hears the other), its role, the distance
+  (including the height between floors, once both levels have a scale) and how many
+  walls or floors it passes through.
 
 Mouse wheel zooms, dragging the background pans, and the buttons in the corner zoom and fit.
 

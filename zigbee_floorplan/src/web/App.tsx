@@ -1,11 +1,18 @@
 // Top level: header with levels and scan control, the floorplan (or list view) and the sidebar.
-import { useCallback, useEffect, useState } from 'react';
-import { api, type Layout, type NetworkResponse, type Status } from './api';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { api, floorImageUrl, type Layout, type NetworkResponse, type Status, type Wall } from './api';
 import { BuildingCanvas, type LinkFilters, type OtherLevels } from './BuildingCanvas';
 import { alignPatch, floorRect, isSized, rescaleAboutCentre, type Point, type Rect, type ViewMode } from './geometry';
 import { LevelsDialog } from './LevelsDialog';
+import { detectWalls } from './walls';
 import { DeviceDetails, DeviceTray } from './Sidebar';
 import { Tables } from './Tables';
+
+// three.js is large, so the 3D view loads the first time it's opened.
+const ThreeView = lazy(() => import('./ThreeView').then((m) => ({ default: m.ThreeView })));
+
+/** Longest side, in pixels, a plan is scaled to before detecting walls. */
+const DETECT_MAX_SIDE = 2500;
 
 const formatTime = (ms: number | null) => (ms ? new Date(ms).toLocaleString() : 'never');
 
@@ -38,6 +45,8 @@ export function App() {
   // While aligning: the draft position of each level moved so far, so the level tabs can
   // switch which level is being aligned. Done saves them all; Cancel drops them.
   const [drafts, setDrafts] = useState<Record<string, Rect> | null>(null);
+  const [walling, setWalling] = useState(false);
+  const [detecting, setDetecting] = useState(false);
   const [floorId, setFloorId] = useState<string | null>(() => remembered('floor', null));
   const [filters, setFilters] = useState<LinkFilters>(() => remembered('filters', { parentChild: true, neighbours: true, unmeasured: true }));
   const [selected, setSelected] = useState<string | null>(null);
@@ -98,17 +107,18 @@ export function App() {
     setScalePoints(null);
     setScaleMetres('');
     setDrafts(null);
+    setWalling(false);
   };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (placing || scalePoints || drafts) cancelModes();
+      if (placing || scalePoints || drafts || walling) cancelModes();
       else setSelected(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [placing, scalePoints, drafts]);
+  }, [placing, scalePoints, drafts, walling]);
 
   const changeLevel = (id: string) => setFloorId(id);
 
@@ -182,6 +192,44 @@ export function App() {
     setDrafts(null);
   };
 
+  const saveWalls = async (id: string, walls: Wall[]) => {
+    setLayout((l) => ({ ...l, floors: l.floors.map((f) => (f.id === id ? { ...f, walls } : f)) }));
+    try {
+      await api.setWalls(id, walls);
+    } catch (err) {
+      report(err);
+      await reloadLayout();
+    }
+  };
+
+  /** Finds the walls in the active level's image (in the browser) and saves them. */
+  const detect = async () => {
+    if (!isSized(floor)) return;
+    if (floor.walls.length && !confirm(`Replace the ${floor.walls.length} walls on ${floor.name} with detected ones?`)) return;
+    setDetecting(true);
+    // Let "Detecting…" paint before the work blocks the page.
+    await new Promise((r) => setTimeout(r, 50));
+    try {
+      const bitmap = await createImageBitmap(await (await fetch(floorImageUrl(floor))).blob());
+      // Large scans are scaled down first: phone browsers cap canvas size, and the detail
+      // isn't needed (detection's thresholds are relative to the image size).
+      const scale = Math.min(1, DETECT_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bitmap.width * scale);
+      canvas.height = Math.round(bitmap.height * scale);
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const walls = detectWalls(ctx.getImageData(0, 0, canvas.width, canvas.height));
+      // Walls are stored in pixels of the size recorded on upload.
+      const f = floor.width / canvas.width;
+      await saveWalls(floor.id, walls.map((w) => ({ x1: w.x1 * f, y1: w.y1 * f, x2: w.x2 * f, y2: w.y2 * f, t: w.t * f })));
+    } catch (err) {
+      report(err);
+    } finally {
+      setDetecting(false);
+    }
+  };
+
   const devices = new Map(network?.devices.map((d) => [d.ieee, d]));
   const placingName = placing ? devices.get(placing)?.name ?? placing : null;
   const canPlace = isSized(floor);
@@ -231,6 +279,15 @@ export function App() {
                     Drag <strong>{floor?.name}</strong> to line it up with the other levels; drag a corner to resize it. Pick another level above to align it too.{' '}
                     <button onClick={() => void saveAlign()}>Done</button> <button className="secondary" onClick={cancelModes}>Cancel</button>
                   </span>
+                ) : walling ? (
+                  <span>
+                    Walls on <strong>{floor?.name}</strong> ({isSized(floor) ? floor.walls.length : 0}): drag to draw one (Shift for any angle),
+                    click one to delete it, right-drag to pan.{' '}
+                    <button disabled={detecting} onClick={() => void detect()}>{detecting ? 'Detecting…' : 'Detect walls'}</button>{' '}
+                    <button className="secondary" disabled={!isSized(floor) || !floor.walls.length}
+                      onClick={() => isSized(floor) && confirm(`Remove all ${floor.walls.length} walls on ${floor.name}?`) && void saveWalls(floor.id, [])}>Clear</button>{' '}
+                    <button className="secondary" onClick={cancelModes}>Done</button>
+                  </span>
                 ) : placing ? (
                   <span>Click the plan to place <strong>{placingName}</strong> <button className="secondary" onClick={cancelModes}>Cancel</button></span>
                 ) : scalePoints ? (
@@ -275,6 +332,9 @@ export function App() {
                           >
                             Align
                           </button>
+                          <button className="secondary" title="Find or draw the walls on this level" onClick={() => { cancelModes(); setSelected(null); setWalling(true); }}>
+                            Walls
+                          </button>
                         </>
                       )}
                     </div>
@@ -283,7 +343,21 @@ export function App() {
               </div>
             )}
 
-            {isSized(floor) ? (
+            {isSized(floor) && mode === '3d' ? (
+              <Suspense fallback={<div className="empty">Loading 3D…</div>}>
+              <ThreeView
+                floors={layout.floors}
+                active={floor}
+                others={others}
+                devices={devices}
+                links={network?.links ?? []}
+                placements={layout.placements}
+                filters={filters}
+                selected={selected}
+                onSelect={select}
+              />
+              </Suspense>
+            ) : isSized(floor) ? (
               <BuildingCanvas
                 floors={layout.floors}
                 active={floor}
@@ -291,6 +365,8 @@ export function App() {
                 others={others}
                 align={align}
                 onAlign={(rect) => floor && setDrafts((d) => ({ ...d, [floor.id]: rect }))}
+                wallEdit={walling}
+                onWalls={(id, walls) => void saveWalls(id, walls)}
                 devices={devices}
                 links={network?.links ?? []}
                 placements={layout.placements}

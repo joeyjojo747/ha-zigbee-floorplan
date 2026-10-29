@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+
+- **Walls**: detect the walls on a plan automatically (in the browser, nothing is
+  uploaded), then fix them up: delete wrong ones, draw missing ones.
+- **3D model**: the 3D view is now a real 3D scene (three.js) with each plan at its
+  level, walls standing, and devices and links in between. Orbit, pan and zoom; click a
+  device to select it.
+- Each link in the device panel shows how many walls or floors it passes through.
+- The 3D view loads only when opened, so the page is lighter.
+
 ## 0.4.2
 
 - Align mode stays on when you pick another level, so you can align several levels in

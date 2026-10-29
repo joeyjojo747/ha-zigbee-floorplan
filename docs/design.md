@@ -187,6 +187,35 @@ heights — modelled on UniFi Design Center's align mode and 3D view.
   manual check on the dev server with the four plans.
 - Not in this version: rotation, per-level attenuation, coverage.
 
+## Walls and 3D model (0.5.0)
+
+Turn each plan into walls, show a real 3D model of the house with the mesh in it, and
+count the walls each link passes through.
+
+- **Wall model:** `Floor.walls: {x1, y1, x2, y2, t}[]` in image pixels (centreline ends
+  and thickness), default `[]`, at most 2000 per level. Replacing the image scales them.
+  `PUT api/floors/:id/walls` replaces a level's walls; validated in `layout.ts`.
+- **Detection** (`src/web/walls.ts`, pure, runs in the browser on the image's pixels):
+  dark pixels (luminance < 110) are eroded with a 3×3 square, which removes thin lines
+  (text strokes, dimension lines, hatching); long horizontal and vertical runs of what's
+  left (≥ 3% of the image's longer side, min 20 px) are merged across adjacent rows or
+  columns into bands, and each band becomes one wall with its measured thickness.
+  Axis-aligned only; angled walls are drawn by hand.
+- **Wall editor** (2D, active level): **Walls** mode draws the walls over the plan.
+  **Detect walls** replaces them with the detected set; click a wall and press Delete
+  (or the button) to remove it; drag on the plan to draw one, snapped to horizontal or
+  vertical unless Shift is held. Each change is saved straight away.
+- **3D view:** the 3D toggle shows a three.js scene instead of the flattened view.
+  Building metres map to three.js as x → X, y → Z, elevation → Y. Each level is a slab
+  textured with its plan; walls are boxes as tall as the level's `floorHeight` (1 m when
+  0); devices are coloured markers 1 m above their level; links are lines coloured by
+  quality. Orbit, pan and zoom with OrbitControls; hovering shows a device's name;
+  clicking selects it. Other levels are see-through, or hidden.
+- **Wall counts:** for a link on one level, the number of that level's walls its straight
+  line crosses (touching within 2% of either end doesn't count); for a link between
+  levels, the number of floors it passes through. Shown with each link in the device panel.
+- Not in this version: rooms, doors and windows as objects, coverage.
+
 ## Phases
 
 1. **Scaffold** (0.1.x) — add-on packaging, MQTT client, scan + normalised

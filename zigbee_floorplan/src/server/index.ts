@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import {
-  addFloor, deleteFloor, IMAGE_TYPES, LayoutError, removePlacement, reorderFloors, setFloorImage, setPlacement, updateFloor,
+  addFloor, deleteFloor, IMAGE_TYPES, LayoutError, removePlacement, reorderFloors, setFloorImage, setPlacement, setWalls, updateFloor,
   type Layout,
 } from './layout.js';
 import { buildNetwork } from './networkmap.js';
@@ -116,6 +116,8 @@ app.post<{ Body: { name?: unknown } }>('/api/floors', async (req, reply) => {
 app.patch<FloorParams & { Body: { name?: unknown; pxPerMetre?: unknown; x?: unknown; y?: unknown; floorHeight?: unknown } }>('/api/floors/:id', async (req) =>
   changeLayout((draft) => updateFloor(draft, req.params.id, req.body ?? {})),
 );
+
+app.put<FloorParams & { Body: unknown }>('/api/floors/:id/walls', async (req) => changeLayout((draft) => setWalls(draft, req.params.id, req.body)));
 
 app.put<{ Body: { ids?: unknown } }>('/api/floors/order', async (req) => {
   await changeLayout((draft) => reorderFloors(draft, req.body?.ids));

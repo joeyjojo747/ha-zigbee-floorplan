@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addFloor, deleteFloor, emptyLayout, LayoutError, normaliseLayout, removePlacement, reorderFloors, setFloorImage, setPlacement,
+  addFloor, deleteFloor, emptyLayout, LayoutError, normaliseLayout, removePlacement, reorderFloors, setFloorImage, setPlacement, setWalls,
   updateFloor, type Layout,
 } from '../src/server/layout.js';
 
@@ -123,6 +123,36 @@ describe('floor images', () => {
     const { layout, floors } = layoutWithFloors('Ground');
     expectError(() => setFloorImage(layout, floors[0].id, { contentType: 'image/gif', width: 1, height: 1 }), 400, /JPEG/);
     expectError(() => setFloorImage(layout, floors[0].id, { contentType: 'image/png', width: NaN, height: 1 }), 400, /width/);
+  });
+});
+
+describe('walls', () => {
+  const wall = { x1: 10, y1: 20, x2: 110, y2: 20, t: 6 };
+
+  it('starts empty, replaces walls and fills them in for older layouts', () => {
+    const { layout, floors } = layoutWithFloors('Ground');
+    expect(floors[0].walls).toEqual([]);
+    setWalls(layout, floors[0].id, [wall, { ...wall, y1: 80, y2: 80 }]);
+    expect(layout.floors[0].walls).toHaveLength(2);
+    const old = { floors: [{ id: 'a', name: 'G', image: null, width: null, height: null, pxPerMetre: null, imageVersion: 0 }], placements: {} };
+    expect(normaliseLayout(old as unknown as Layout).floors[0].walls).toEqual([]);
+  });
+
+  it('rejects bad walls', () => {
+    const { layout, floors } = layoutWithFloors('Ground');
+    expectError(() => setWalls(layout, floors[0].id, 'x'), 400, /Walls/);
+    expectError(() => setWalls(layout, floors[0].id, [{ ...wall, x1: 'a' }]), 400, /Walls/);
+    expectError(() => setWalls(layout, floors[0].id, [{ ...wall, t: 0 }]), 400, /Walls/);
+    expectError(() => setWalls(layout, floors[0].id, Array(2001).fill(wall)), 400, /2000/);
+  });
+
+  it('scales walls when a larger image of the same plan is uploaded', () => {
+    const { layout, floors } = layoutWithFloors('Ground');
+    const id = floors[0].id;
+    setFloorImage(layout, id, { contentType: 'image/png', width: 200, height: 100 });
+    setWalls(layout, id, [wall]);
+    setFloorImage(layout, id, { contentType: 'image/png', width: 400, height: 200 });
+    expect(layout.floors[0].walls[0]).toEqual({ x1: 20, y1: 40, x2: 220, y2: 40, t: 12 });
   });
 });
 
