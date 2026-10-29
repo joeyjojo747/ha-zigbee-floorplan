@@ -35,7 +35,9 @@ export function App() {
   const [view, setView] = useState<'plan' | 'list'>(() => (remembered<string>('view', 'plan') === 'list' ? 'list' : 'plan'));
   const [mode, setMode] = useState<ViewMode>(() => remembered('mode', '2d'));
   const [others, setOthers] = useState<OtherLevels>(() => remembered('others', 'faint'));
-  const [align, setAlign] = useState<Rect | null>(null);
+  // While aligning: the draft position of each level moved so far, so the level tabs can
+  // switch which level is being aligned. Done saves them all; Cancel drops them.
+  const [drafts, setDrafts] = useState<Record<string, Rect> | null>(null);
   const [floorId, setFloorId] = useState<string | null>(() => remembered('floor', null));
   const [filters, setFilters] = useState<LinkFilters>(() => remembered('filters', { parentChild: true, neighbours: true, unmeasured: true }));
   const [selected, setSelected] = useState<string | null>(null);
@@ -88,27 +90,27 @@ export function App() {
     if (floor && floor.id !== floorId) setFloorId(floor.id);
   }, [floor, floorId]);
 
+  /** The active level's draft position while aligning, else null. */
+  const align = drafts && isSized(floor) ? drafts[floor.id] ?? floorRect(floor) : null;
+
   const cancelModes = () => {
     setPlacing(null);
     setScalePoints(null);
     setScaleMetres('');
-    setAlign(null);
+    setDrafts(null);
   };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (placing || scalePoints || align) cancelModes();
+      if (placing || scalePoints || drafts) cancelModes();
       else setSelected(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [placing, scalePoints, align]);
+  }, [placing, scalePoints, drafts]);
 
-  const changeLevel = (id: string) => {
-    if (id !== floor?.id) setAlign(null);
-    setFloorId(id);
-  };
+  const changeLevel = (id: string) => setFloorId(id);
 
   const startScan = async () => {
     try {
@@ -167,14 +169,17 @@ export function App() {
   };
 
   const saveAlign = async () => {
-    if (!isSized(floor) || !align) return;
+    if (!drafts) return;
     try {
-      await api.updateFloor(floor.id, alignPatch(floor, align));
-      await reloadLayout();
+      for (const [id, rect] of Object.entries(drafts)) {
+        const level = layout.floors.find((f) => f.id === id);
+        if (isSized(level)) await api.updateFloor(id, alignPatch(level, rect));
+      }
     } catch (err) {
       report(err);
     }
-    setAlign(null);
+    await reloadLayout();
+    setDrafts(null);
   };
 
   const devices = new Map(network?.devices.map((d) => [d.ieee, d]));
@@ -221,9 +226,9 @@ export function App() {
           <div className="plan-area">
             {canPlace && (
               <div className="plan-toolbar">
-                {align ? (
+                {drafts ? (
                   <span>
-                    Drag <strong>{floor?.name}</strong> to line it up with the other levels; drag a corner to resize it.{' '}
+                    Drag <strong>{floor?.name}</strong> to line it up with the other levels; drag a corner to resize it. Pick another level above to align it too.{' '}
                     <button onClick={() => void saveAlign()}>Done</button> <button className="secondary" onClick={cancelModes}>Cancel</button>
                   </span>
                 ) : placing ? (
@@ -266,7 +271,7 @@ export function App() {
                             className="secondary"
                             disabled={!otherSized}
                             title={otherSized ? 'Line this level up with the others' : 'Add another level with an image to align to'}
-                            onClick={() => { cancelModes(); setSelected(null); setAlign(floorRect(floor)); }}
+                            onClick={() => { cancelModes(); setSelected(null); setDrafts({}); }}
                           >
                             Align
                           </button>
@@ -285,7 +290,7 @@ export function App() {
                 mode={mode}
                 others={others}
                 align={align}
-                onAlign={setAlign}
+                onAlign={(rect) => floor && setDrafts((d) => ({ ...d, [floor.id]: rect }))}
                 devices={devices}
                 links={network?.links ?? []}
                 placements={layout.placements}

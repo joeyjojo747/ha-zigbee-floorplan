@@ -22,7 +22,8 @@ Shows your Zigbee2MQTT network on your floorplan.
 4. **Align and stack levels** (if you have more than one). List the levels top to bottom
    in **Levels…** and give each its floor-to-floor **height** (use 0 for a site plan, so it
    sits at the same height as the level above it). Then open a level, click **Align**, drag
-   it into place over the others and drag a corner to resize it; **Done** saves it. Aligning
+   it into place over the others and drag a corner to resize it. Pick another level tab to
+   align it too; **Done** saves every level you moved. Aligning
    every level onto a scaled site plan gives them all the right scale.
 5. **Place devices.** Click a device in the **Not placed** list, then click where it is
    on the plan. Drag a device to move it. Select a device and click **Move** to put it on

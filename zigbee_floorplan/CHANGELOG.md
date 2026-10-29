@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2
+
+- Align mode stays on when you pick another level, so you can align several levels in
+  one go. **Done** saves every level you moved; **Cancel** or Esc drops them all.
+
 ## 0.4.1
 
 - Add-on icon and logo in the add-on store.
