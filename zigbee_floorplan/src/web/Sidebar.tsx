@@ -9,12 +9,14 @@ const TYPE_LABEL = { Coordinator: 'Coordinator', Router: 'Router', EndDevice: 'E
 export function DeviceTray(props: {
   devices: NetworkDevice[];
   placements: Record<string, Placement>;
+  /** The level shown on its own, for the "On <level>" list; null in the all-levels view. */
   floor: Floor | null;
+  canPlace: boolean;
   placing: string | null;
   onStartPlacing: (ieee: string) => void;
   onSelect: (ieee: string) => void;
 }) {
-  const { devices, placements, floor, placing } = props;
+  const { devices, placements, floor, canPlace, placing } = props;
   const [query, setQuery] = useState('');
   const matches = (d: NetworkDevice) => d.name.toLowerCase().includes(query.trim().toLowerCase());
   const unplaced = devices.filter((d) => !placements[d.ieee] && matches(d));
@@ -26,13 +28,13 @@ export function DeviceTray(props: {
 
       <h3>Not placed <span className="muted">({unplaced.length})</span></h3>
       {unplaced.length === 0 && <p className="muted small">{query ? 'No matches.' : 'Every device is on the plan.'}</p>}
-      {floor && unplaced.length > 0 && <p className="muted small">Click a device, then click the plan to place it.</p>}
+      {canPlace && unplaced.length > 0 && <p className="muted small">Click a device, then click the plan to place it.</p>}
       <ul>
         {unplaced.map((d) => (
           <li key={d.ieee}>
             <button
               className={`device-row${placing === d.ieee ? ' active' : ''}`}
-              disabled={!floor}
+              disabled={!canPlace}
               onClick={() => props.onStartPlacing(d.ieee)}
             >
               <DeviceIcon device={d} />

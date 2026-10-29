@@ -1,5 +1,6 @@
 // Top level: header with levels and scan control, the floorplan (or list view) and the sidebar.
 import { useCallback, useEffect, useState } from 'react';
+import { AllLevels } from './AllLevels';
 import { api, type Floor, type Layout, type NetworkResponse, type Status } from './api';
 import { FloorCanvas, type LinkFilters, type Point } from './FloorCanvas';
 import { LevelsDialog } from './LevelsDialog';
@@ -33,7 +34,7 @@ export function App() {
   const [network, setNetwork] = useState<NetworkResponse | null>(null);
   const [layout, setLayout] = useState<Layout>({ floors: [], placements: {} });
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<'plan' | 'list'>(() => remembered('view', 'plan'));
+  const [view, setView] = useState<'plan' | 'all' | 'list'>(() => remembered('view', 'plan'));
   const [floorId, setFloorId] = useState<string | null>(() => remembered('floor', null));
   const [filters, setFilters] = useState<LinkFilters>(() => remembered('filters', { parentChild: true, neighbours: true, unmeasured: true }));
   const [selected, setSelected] = useState<string | null>(null);
@@ -115,9 +116,8 @@ export function App() {
     if (placement && placement.floorId !== floor?.id) setFloorId(placement.floorId);
   };
 
-  const place = async (ieee: string, x: number, y: number) => {
-    if (!floor) return;
-    const placement = { floorId: floor.id, x, y };
+  const place = async (ieee: string, floorId: string, x: number, y: number) => {
+    const placement = { floorId, x, y };
     setLayout((l) => ({ ...l, placements: { ...l.placements, [ieee]: placement } }));
     setPlacing(null);
     setSelected(ieee);
@@ -157,12 +157,17 @@ export function App() {
 
   const devices = new Map(network?.devices.map((d) => [d.ieee, d]));
   const placingName = placing ? devices.get(placing)?.name ?? placing : null;
+  const showAll = view === 'all' && layout.floors.length > 1;
+  const canPlace = showAll ? layout.floors.some(hasImage) : hasImage(floor);
 
   return (
     <div className="app">
       <header>
         <h1>Zigbee Floorplan</h1>
         <nav className="levels-tabs" aria-label="Levels">
+          {layout.floors.length > 1 && (
+            <button className={showAll ? 'tab active' : 'tab'} onClick={() => { cancelModes(); setView('all'); }}>All levels</button>
+          )}
           {layout.floors.map((f) => (
             <button key={f.id} className={f.id === floor?.id && view === 'plan' ? 'tab active' : 'tab'} onClick={() => { setFloorId(f.id); setView('plan'); }}>
               {f.name}
@@ -195,7 +200,7 @@ export function App() {
       ) : (
         <div className="workspace">
           <div className="plan-area">
-            {floor && hasImage(floor) && (
+            {canPlace && (
               <div className="plan-toolbar">
                 {placing ? (
                   <span>Click the plan to place <strong>{placingName}</strong> <button className="secondary" onClick={cancelModes}>Cancel</button></span>
@@ -213,15 +218,31 @@ export function App() {
                 ) : (
                   <>
                     <Legend filters={filters} onChange={setFilters} />
-                    <button className="secondary" onClick={() => { setSelected(null); setScalePoints([]); }}>
-                      {floor.pxPerMetre ? 'Reset scale' : 'Set scale'}
-                    </button>
+                    {!showAll && floor && (
+                      <button className="secondary" onClick={() => { setSelected(null); setScalePoints([]); }}>
+                        {floor.pxPerMetre ? 'Reset scale' : 'Set scale'}
+                      </button>
+                    )}
                   </>
                 )}
               </div>
             )}
 
-            {floor && hasImage(floor) ? (
+            {showAll ? (
+              <AllLevels
+                floors={layout.floors}
+                devices={devices}
+                links={network?.links ?? []}
+                placements={layout.placements}
+                filters={filters}
+                selected={selected}
+                onSelect={select}
+                placing={placing}
+                onPlace={(ieee, floorId, x, y) => void place(ieee, floorId, x, y)}
+                onOpenLevel={(id) => { setFloorId(id); setView('plan'); }}
+                onManageLevels={() => setShowLevels(true)}
+              />
+            ) : floor && hasImage(floor) ? (
               <FloorCanvas
                 floor={floor}
                 devices={devices}
@@ -231,7 +252,7 @@ export function App() {
                 selected={selected}
                 onSelect={select}
                 placing={placing}
-                onPlace={(ieee, x, y) => void place(ieee, x, y)}
+                onPlace={(ieee, floorId, x, y) => void place(ieee, floorId, x, y)}
                 scalePoints={scalePoints}
                 onScalePoint={(p) => setScalePoints((pts) => (pts && pts.length < 2 ? [...pts, p] : pts))}
               />
@@ -260,7 +281,8 @@ export function App() {
               <DeviceTray
                 devices={network?.devices ?? []}
                 placements={layout.placements}
-                floor={hasImage(floor) ? floor : null}
+                floor={!showAll && hasImage(floor) ? floor : null}
+                canPlace={canPlace}
                 placing={placing}
                 onStartPlacing={(ieee) => { setScalePoints(null); setPlacing(placing === ieee ? null : ieee); }}
                 onSelect={select}

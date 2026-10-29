@@ -124,6 +124,13 @@ leaves a half-written layout. Rules live in `src/server/layout.ts` (pure, tested
 - Links are drawn when both ends are on the shown level; links to other levels show as
   a "⇅ n" badge and in the details panel, where clicking jumps to that level.
 - Scale tool: two clicks plus a known distance gives `pxPerMetre`.
+- All levels view (0.3.0): a grid of FloorCanvas panels plus one absolutely positioned
+  SVG overlay for cross-level links. The overlay reads each marker's on-screen position
+  from the DOM and re-measures when any panel reports a view change, so lines follow
+  per-panel pan/zoom without re-rendering the panels. Endpoints of markers panned out
+  of view are clamped to their panel's edge.
+- Later: align levels to the site plan (offset/scale per level) to enable a ghost of
+  the level above/below and a stacked 3D view like UniFi Design Center.
 
 ## Phases
 

@@ -21,10 +21,14 @@ interface Props {
   onSelect: (ieee: string | null) => void;
   /** Device waiting to be placed with the next click, if any. */
   placing: string | null;
-  onPlace: (ieee: string, x: number, y: number) => void;
+  onPlace: (ieee: string, floorId: string, x: number, y: number) => void;
   /** Points (image pixels) picked so far with the scale tool, or null when it's off. */
   scalePoints: Point[] | null;
   onScalePoint: (p: Point) => void;
+  /** Show "⇅ n" badges for links to other levels (off when those links are drawn instead). */
+  crossLevelBadges?: boolean;
+  /** Called after the visible area or marker positions change on screen. */
+  onViewChange?: () => void;
 }
 
 type View = { x: number; y: number; w: number; h: number };
@@ -36,7 +40,7 @@ const RADIUS = { Coordinator: 11, Router: 9, EndDevice: 7 } as const;
 const NICE_METRES = [0.5, 1, 2, 5, 10, 20, 50, 100];
 
 export function FloorCanvas(props: Props) {
-  const { floor, devices, links, placements, filters, selected, placing, scalePoints } = props;
+  const { floor, devices, links, placements, filters, selected, placing, scalePoints, crossLevelBadges = true, onViewChange } = props;
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fit = (): View => {
@@ -58,6 +62,8 @@ export function FloorCanvas(props: Props) {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => onViewChange?.(), [view, size, dragPos, onViewChange]);
 
   /** SVG units (image pixels) per screen pixel, matching preserveAspectRatio="meet". */
   const k = 1 / Math.min(size.w / view.w, size.h / view.h);
@@ -117,12 +123,12 @@ export function FloorCanvas(props: Props) {
     if (!gesture) return;
     const p = toImage(e.clientX, e.clientY);
     if (gesture.kind === 'drag') {
-      if (gesture.moved && dragPos) props.onPlace(gesture.ieee, dragPos.x / floor.width, dragPos.y / floor.height);
+      if (gesture.moved && dragPos) props.onPlace(gesture.ieee, floor.id, dragPos.x / floor.width, dragPos.y / floor.height);
       else props.onSelect(gesture.ieee);
     } else if (!gesture.moved) {
       if (placing) {
         const c = clampToImage(p);
-        props.onPlace(placing, c.x / floor.width, c.y / floor.height);
+        props.onPlace(placing, floor.id, c.x / floor.width, c.y / floor.height);
       } else if (scalePoints) {
         props.onScalePoint(p);
       } else {
@@ -145,12 +151,7 @@ export function FloorCanvas(props: Props) {
   }
   if (gesture?.kind === 'drag' && dragPos) positions.set(gesture.ieee, dragPos);
 
-  const visibleLinks = links.filter(
-    (l) =>
-      positions.has(l.a) && positions.has(l.b) &&
-      (l.parent ? filters.parentChild : filters.neighbours) &&
-      (filters.unmeasured || l.quality !== 'unknown'),
-  );
+  const visibleLinks = links.filter((l) => positions.has(l.a) && positions.has(l.b) && linkShown(l, filters));
   // Neighbours placed on other levels, per device on this level.
   const otherLevel = new Map<string, number>();
   for (const l of links) {
@@ -165,7 +166,7 @@ export function FloorCanvas(props: Props) {
   const cursor = placing || scalePoints ? 'crosshair' : gesture?.kind === 'pan' && gesture.moved ? 'grabbing' : 'grab';
 
   return (
-    <div className="canvas" ref={containerRef}>
+    <div className="canvas" ref={containerRef} data-floor={floor.id}>
       <svg
         ref={svgRef}
         viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
@@ -226,7 +227,7 @@ export function FloorCanvas(props: Props) {
                   ? <rect className="dot" x={-r} y={-r} width={r * 2} height={r * 2} rx={3 * k} strokeWidth={2 * k} />
                   : <circle className="dot" r={r} strokeWidth={2 * k} />}
                 <text y={r + 13 * k} fontSize={12 * k} strokeWidth={3 * k} className="halo" textAnchor="middle">{name(ieee)}</text>
-                {cross && (
+                {cross && crossLevelBadges && (
                   <text x={r + 3 * k} y={-r} fontSize={11 * k} strokeWidth={3 * k} className="halo cross">
                     ⇅{cross}
                     <title>{`${cross} link${cross > 1 ? 's' : ''} to devices on other levels`}</title>
@@ -263,6 +264,11 @@ function ScaleBar({ pxPerMetre, k }: { pxPerMetre: number; k: number }) {
       <span>{metres} m</span>
     </div>
   );
+}
+
+/** Whether the legend's filters let this link be drawn. */
+export function linkShown(l: NetworkLink, filters: LinkFilters): boolean {
+  return (l.parent ? filters.parentChild : filters.neighbours) && (filters.unmeasured || l.quality !== 'unknown');
 }
 
 /** Straight-line distance in metres between two placements on the same scaled level. */

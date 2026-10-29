@@ -32,6 +32,10 @@ Shows your Zigbee2MQTT network on your floorplan.
   quality (LQI): green good (≥ 100), amber fair (50–99), red poor (< 50), grey dotted
   unmeasured (common for battery devices). Thicker lines are parent–child links.
 - **⇅ n** next to a device: it has *n* links to devices on other levels.
+- **All levels** (shown once you have two or more levels) puts every level side by
+  side and draws the links between levels across the panels. They're faint until you
+  select a device, which highlights its links on every level. **Open** on a panel goes
+  to that level on its own (where the scale tool is).
 - **Click a device** to highlight its links and see each one with LQI in both directions
   ("hears it" is how well this device hears the other), its role and the distance.
 

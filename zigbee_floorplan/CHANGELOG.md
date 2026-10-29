@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- **All levels** view: every level side by side, with links between levels drawn
+  across the panels. Each panel pans and zooms on its own and the lines follow.
+- Selecting a device highlights its links on every level, with LQI labels.
+- Devices can be placed and moved on any panel in the All levels view.
+
 ## 0.2.0
 
 - Floorplan editor: add levels with a floorplan image, rename, reorder, replace or delete them.
