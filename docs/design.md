@@ -92,7 +92,7 @@ an "↑ / ↓ level" badge.
 
 ## Storage (`/data`)
 
-- `layout.json` — `{ floors: [{id, name, image, width, height, pxPerMetre, imageVersion}], placements: {ieee: {floorId, x, y}} }`
+- `layout.json` — `{ floors: [{id, name, image, width, height, pxPerMetre, imageVersion, x, y, floorHeight}], placements: {ieee: {floorId, x, y}} }`
   (floors in display order; image size is measured by the browser on upload)
 - `floors/<id>.<ext>` — uploaded images
 - `scans/latest.json` — last raw scan; history (SQLite) comes later.
@@ -124,13 +124,68 @@ leaves a half-written layout. Rules live in `src/server/layout.ts` (pure, tested
 - Links are drawn when both ends are on the shown level; links to other levels show as
   a "⇅ n" badge and in the details panel, where clicking jumps to that level.
 - Scale tool: two clicks plus a known distance gives `pxPerMetre`.
-- All levels view (0.3.0): a grid of FloorCanvas panels plus one absolutely positioned
-  SVG overlay for cross-level links. The overlay reads each marker's on-screen position
-  from the DOM and re-measures when any panel reports a view change, so lines follow
-  per-panel pan/zoom without re-rendering the panels. Endpoints of markers panned out
-  of view are clamped to their panel's edge.
-- Later: align levels to the site plan (offset/scale per level) to enable a ghost of
-  the level above/below and a stacked 3D view like UniFi Design Center.
+- All levels view (0.3.0): a grid of FloorCanvas panels with an overlay for cross-level
+  links. Replaced in 0.4.0 by the building view below.
+
+## Building view (0.4.0)
+
+All levels in one panel with one pan/zoom, levels aligned to each other, and floor
+heights — modelled on UniFi Design Center's align mode and 3D view.
+
+### Model
+
+- **Building frame:** a shared 2D coordinate space in metres (x right, y down, as on
+  the plans). Each level is placed in it by its image's top-left corner and its scale:
+  `building = (floor.x, floor.y) + imagePx / pxPerMetre`.
+- New `Floor` fields: `x`, `y` (metres, default 0) and `floorHeight` (floor-to-floor metres,
+  default 2.4, range 0–20).
+- `pxPerMetre` is the level's scale for both the scale bar and alignment. A level with
+  no scale is drawn as if 20 m wide (`width / 20` px per metre) until it is scaled or
+  resized in align mode, which saves `pxPerMetre`.
+- **Order and elevation:** levels are listed top to bottom. A level's elevation is the
+  sum of the `floorHeight`s of the levels below it, so the bottom level is at 0. Height 0
+  puts the level above at the same elevation; the site plan uses it to share the
+  ground floor's elevation. Example: First (2.4), Ground (2.4), Site plan (0),
+  Lower ground (2.4) → elevations 4.8, 2.4, 2.4, 0.
+- Existing layouts load with `x = y = 0` and `floorHeight = 2.4`. Placements are unchanged
+  (still 0–1 fractions of the image).
+- Device position in 3D: building `(x, y)` plus the level's elevation as `z`. Link
+  distance is the 3D distance when both levels have a scale, otherwise not shown.
+- API: `PATCH api/floors/:id` also accepts `x`, `y` and `floorHeight`.
+
+### View
+
+- The plan view is the single panel. Level tabs pick the **active level**; the
+  separate All levels tab and grid are removed.
+- **Other levels:** hidden, or drawn faint under the active level.
+- **2D:** one SVG in building metres. Levels are drawn bottom to top; the active level
+  is solid, others faint. Active-level devices are full strength, other levels' devices
+  dimmed. A link is drawn when both its devices are visible. Placing, dragging and the
+  scale tool work on the active level only.
+- **3D:** each level is drawn with an SVG matrix that flattens it (y × 0.5) and lifts it
+  by its elevation × an exaggeration factor so floors separate. Markers and labels are
+  drawn upright at their projected positions, and links are straight lines between
+  projected points, so links between floors are slanted lines. Select, pan and zoom
+  only.
+- Markers and labels keep a constant on-screen size, as before.
+
+### Align mode
+
+- **Align** (2D only) draws a frame around the active level: drag inside to move,
+  drag a corner to resize with the aspect ratio kept (the opposite corner stays fixed).
+- Other levels show underneath; the level being aligned is drawn at 60% opacity.
+- **Done** saves `x`, `y` and `pxPerMetre`; **Esc** cancels.
+- The Levels dialog gets a height field per level.
+
+### Code
+
+- `src/web/geometry.ts` (pure, tested): image px ↔ building metres, elevation per level,
+  3D projection, aligned resize from a corner drag, 3D link distance.
+- `layout.ts` validates the new fields; `FloorCanvas` is replaced by a building canvas
+  that renders all levels; `AllLevels.tsx` is removed.
+- Tests: geometry unit tests and layout tests for the new fields and migration;
+  manual check on the dev server with the four plans.
+- Not in this version: rotation, per-level attenuation, coverage.
 
 ## Phases
 

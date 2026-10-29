@@ -1,5 +1,5 @@
 name: Zigbee Floorplan
-version: "0.3.0"
+version: "0.4.0"
 slug: zigbee_floorplan
 image: ghcr.io/joeyjojo747/zigbee-floorplan
 description: Show your Zigbee2MQTT mesh on your house floorplan

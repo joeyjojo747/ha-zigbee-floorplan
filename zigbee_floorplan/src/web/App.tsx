@@ -1,8 +1,8 @@
 // Top level: header with levels and scan control, the floorplan (or list view) and the sidebar.
 import { useCallback, useEffect, useState } from 'react';
-import { AllLevels } from './AllLevels';
-import { api, type Floor, type Layout, type NetworkResponse, type Status } from './api';
-import { FloorCanvas, type LinkFilters, type Point } from './FloorCanvas';
+import { api, type Layout, type NetworkResponse, type Status } from './api';
+import { BuildingCanvas, type LinkFilters, type OtherLevels } from './BuildingCanvas';
+import { alignPatch, floorRect, isSized, rescaleAboutCentre, type Point, type Rect, type ViewMode } from './geometry';
 import { LevelsDialog } from './LevelsDialog';
 import { DeviceDetails, DeviceTray } from './Sidebar';
 import { Tables } from './Tables';
@@ -26,15 +26,16 @@ function remember(key: string, value: unknown) {
   }
 }
 
-const hasImage = (floor: Floor | null): floor is Floor & { width: number; height: number } =>
-  !!floor?.image && !!floor.width && !!floor.height;
-
 export function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [network, setNetwork] = useState<NetworkResponse | null>(null);
   const [layout, setLayout] = useState<Layout>({ floors: [], placements: {} });
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<'plan' | 'all' | 'list'>(() => remembered('view', 'plan'));
+  // 0.3.0 remembered 'all' for its side-by-side view, which the plan view now replaces.
+  const [view, setView] = useState<'plan' | 'list'>(() => (remembered<string>('view', 'plan') === 'list' ? 'list' : 'plan'));
+  const [mode, setMode] = useState<ViewMode>(() => remembered('mode', '2d'));
+  const [others, setOthers] = useState<OtherLevels>(() => remembered('others', 'faint'));
+  const [align, setAlign] = useState<Rect | null>(null);
   const [floorId, setFloorId] = useState<string | null>(() => remembered('floor', null));
   const [filters, setFilters] = useState<LinkFilters>(() => remembered('filters', { parentChild: true, neighbours: true, unmeasured: true }));
   const [selected, setSelected] = useState<string | null>(null);
@@ -46,6 +47,8 @@ export function App() {
   useEffect(() => remember('view', view), [view]);
   useEffect(() => remember('floor', floorId), [floorId]);
   useEffect(() => remember('filters', filters), [filters]);
+  useEffect(() => remember('mode', mode), [mode]);
+  useEffect(() => remember('others', others), [others]);
 
   const report = (err: unknown) => setError((err as Error).message);
 
@@ -89,17 +92,23 @@ export function App() {
     setPlacing(null);
     setScalePoints(null);
     setScaleMetres('');
+    setAlign(null);
   };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (placing || scalePoints) cancelModes();
+      if (placing || scalePoints || align) cancelModes();
       else setSelected(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [placing, scalePoints]);
+  }, [placing, scalePoints, align]);
+
+  const changeLevel = (id: string) => {
+    if (id !== floor?.id) setAlign(null);
+    setFloorId(id);
+  };
 
   const startScan = async () => {
     try {
@@ -113,7 +122,7 @@ export function App() {
   const select = (ieee: string | null) => {
     setSelected(ieee);
     const placement = ieee ? layout.placements[ieee] : undefined;
-    if (placement && placement.floorId !== floor?.id) setFloorId(placement.floorId);
+    if (placement && placement.floorId !== floor?.id) changeLevel(placement.floorId);
   };
 
   const place = async (ieee: string, floorId: string, x: number, y: number) => {
@@ -144,10 +153,12 @@ export function App() {
 
   const saveScale = async () => {
     const metres = Number(scaleMetres);
-    if (!floor || !scalePoints || scalePoints.length < 2 || !(metres > 0)) return;
+    if (!isSized(floor) || !scalePoints || scalePoints.length < 2 || !(metres > 0)) return;
     const [a, b] = scalePoints;
+    const pxPerMetre = Math.hypot(a.x - b.x, a.y - b.y) / metres;
     try {
-      await api.updateFloor(floor.id, { pxPerMetre: Math.hypot(a.x - b.x, a.y - b.y) / metres });
+      // Keep the level centred where it was aligned, so a new scale doesn't shift it.
+      await api.updateFloor(floor.id, { pxPerMetre, ...rescaleAboutCentre(floor, pxPerMetre) });
       await reloadLayout();
     } catch (err) {
       report(err);
@@ -155,21 +166,29 @@ export function App() {
     cancelModes();
   };
 
+  const saveAlign = async () => {
+    if (!isSized(floor) || !align) return;
+    try {
+      await api.updateFloor(floor.id, alignPatch(floor, align));
+      await reloadLayout();
+    } catch (err) {
+      report(err);
+    }
+    setAlign(null);
+  };
+
   const devices = new Map(network?.devices.map((d) => [d.ieee, d]));
   const placingName = placing ? devices.get(placing)?.name ?? placing : null;
-  const showAll = view === 'all' && layout.floors.length > 1;
-  const canPlace = showAll ? layout.floors.some(hasImage) : hasImage(floor);
+  const canPlace = isSized(floor);
+  const otherSized = layout.floors.filter((f) => f.id !== floor?.id && isSized(f)).length > 0;
 
   return (
     <div className="app">
       <header>
         <h1>Zigbee Floorplan</h1>
         <nav className="levels-tabs" aria-label="Levels">
-          {layout.floors.length > 1 && (
-            <button className={showAll ? 'tab active' : 'tab'} onClick={() => { cancelModes(); setView('all'); }}>All levels</button>
-          )}
           {layout.floors.map((f) => (
-            <button key={f.id} className={f.id === floor?.id && view === 'plan' ? 'tab active' : 'tab'} onClick={() => { setFloorId(f.id); setView('plan'); }}>
+            <button key={f.id} className={f.id === floor?.id && view === 'plan' ? 'tab active' : 'tab'} onClick={() => { changeLevel(f.id); setView('plan'); }}>
               {f.name}
             </button>
           ))}
@@ -202,7 +221,12 @@ export function App() {
           <div className="plan-area">
             {canPlace && (
               <div className="plan-toolbar">
-                {placing ? (
+                {align ? (
+                  <span>
+                    Drag <strong>{floor?.name}</strong> to line it up with the other levels; drag a corner to resize it.{' '}
+                    <button onClick={() => void saveAlign()}>Done</button> <button className="secondary" onClick={cancelModes}>Cancel</button>
+                  </span>
+                ) : placing ? (
                   <span>Click the plan to place <strong>{placingName}</strong> <button className="secondary" onClick={cancelModes}>Cancel</button></span>
                 ) : scalePoints ? (
                   scalePoints.length < 2 ? (
@@ -218,33 +242,50 @@ export function App() {
                 ) : (
                   <>
                     <Legend filters={filters} onChange={setFilters} />
-                    {!showAll && floor && (
-                      <button className="secondary" onClick={() => { setSelected(null); setScalePoints([]); }}>
-                        {floor.pxPerMetre ? 'Reset scale' : 'Set scale'}
-                      </button>
-                    )}
+                    <div className="view-controls">
+                      <span className="segmented" role="group" aria-label="View">
+                        {(['2d', '3d'] as const).map((m) => (
+                          <button key={m} className={mode === m ? 'active' : ''} onClick={() => { cancelModes(); setMode(m); }}>{m.toUpperCase()}</button>
+                        ))}
+                      </span>
+                      {layout.floors.length > 1 && (
+                        <label>
+                          Other levels{' '}
+                          <select value={others} onChange={(e) => setOthers(e.target.value as OtherLevels)}>
+                            <option value="faint">Faint</option>
+                            <option value="hidden">Hidden</option>
+                          </select>
+                        </label>
+                      )}
+                      {mode === '2d' && isSized(floor) && (
+                        <>
+                          <button className="secondary" onClick={() => { setSelected(null); setScalePoints([]); }}>
+                            {floor.pxPerMetre ? 'Reset scale' : 'Set scale'}
+                          </button>
+                          <button
+                            className="secondary"
+                            disabled={!otherSized}
+                            title={otherSized ? 'Line this level up with the others' : 'Add another level with an image to align to'}
+                            onClick={() => { cancelModes(); setSelected(null); setAlign(floorRect(floor)); }}
+                          >
+                            Align
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </>
                 )}
               </div>
             )}
 
-            {showAll ? (
-              <AllLevels
+            {isSized(floor) ? (
+              <BuildingCanvas
                 floors={layout.floors}
-                devices={devices}
-                links={network?.links ?? []}
-                placements={layout.placements}
-                filters={filters}
-                selected={selected}
-                onSelect={select}
-                placing={placing}
-                onPlace={(ieee, floorId, x, y) => void place(ieee, floorId, x, y)}
-                onOpenLevel={(id) => { setFloorId(id); setView('plan'); }}
-                onManageLevels={() => setShowLevels(true)}
-              />
-            ) : floor && hasImage(floor) ? (
-              <FloorCanvas
-                floor={floor}
+                active={floor}
+                mode={mode}
+                others={others}
+                align={align}
+                onAlign={setAlign}
                 devices={devices}
                 links={network?.links ?? []}
                 placements={layout.placements}
@@ -273,7 +314,7 @@ export function App() {
                 placements={layout.placements}
                 floors={layout.floors}
                 onSelect={select}
-                onMove={(ieee) => { setScalePoints(null); setPlacing(ieee); }}
+                onMove={(ieee) => { cancelModes(); setMode('2d'); setPlacing(ieee); }}
                 onRemove={(ieee) => void unplace(ieee)}
                 onClose={() => setSelected(null)}
               />
@@ -281,10 +322,10 @@ export function App() {
               <DeviceTray
                 devices={network?.devices ?? []}
                 placements={layout.placements}
-                floor={!showAll && hasImage(floor) ? floor : null}
+                floor={isSized(floor) ? floor : null}
                 canPlace={canPlace}
                 placing={placing}
-                onStartPlacing={(ieee) => { setScalePoints(null); setPlacing(placing === ieee ? null : ieee); }}
+                onStartPlacing={(ieee) => { cancelModes(); setMode('2d'); setPlacing(placing === ieee ? null : ieee); }}
                 onSelect={select}
               />
             )}

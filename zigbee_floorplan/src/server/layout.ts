@@ -14,7 +14,14 @@ export interface Floor {
   pxPerMetre: number | null;
   /** Bumped on every image upload so browsers don't show a cached old image. */
   imageVersion: number;
+  /** Where the image's top-left corner sits in the shared building frame, in metres. */
+  x: number;
+  y: number;
+  /** Floor-to-floor height in metres; 0 puts the level above at the same elevation. */
+  floorHeight: number;
 }
+
+export const DEFAULT_FLOOR_HEIGHT = 2.4;
 
 /** Position as fractions (0–1) of the floor image, so a sharper image keeps placements. */
 export interface Placement {
@@ -40,6 +47,14 @@ export const IMAGE_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image
 
 export const emptyLayout = (): Layout => ({ floors: [], placements: {} });
 
+/** Fills in fields added since the layout was saved (position and height arrived in 0.4.0). */
+export function normaliseLayout(layout: Layout): Layout {
+  return {
+    ...layout,
+    floors: layout.floors.map((floor) => ({ ...floor, x: floor.x ?? 0, y: floor.y ?? 0, floorHeight: floor.floorHeight ?? DEFAULT_FLOOR_HEIGHT })),
+  };
+}
+
 function findFloor(layout: Layout, id: string): Floor {
   const floor = layout.floors.find((f) => f.id === id);
   if (!floor) throw new LayoutError(404, `No level with id ${id}`);
@@ -57,17 +72,38 @@ function positive(value: unknown, what: string): number {
   return value;
 }
 
+function position(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new LayoutError(400, 'Position must be a number');
+  return value;
+}
+
+function floorHeight(value: unknown): number {
+  if (typeof value !== 'number' || !(value >= 0 && value <= 20)) throw new LayoutError(400, 'Height must be between 0 and 20 m');
+  return value;
+}
+
 export function addFloor(layout: Layout, name: unknown): Floor {
-  const floor: Floor = { id: crypto.randomUUID().slice(0, 8), name: cleanName(name), image: null, width: null, height: null, pxPerMetre: null, imageVersion: 0 };
+  const floor: Floor = {
+    id: crypto.randomUUID().slice(0, 8), name: cleanName(name), image: null, width: null, height: null, pxPerMetre: null, imageVersion: 0,
+    x: 0, y: 0, floorHeight: DEFAULT_FLOOR_HEIGHT,
+  };
   layout.floors.push(floor);
   return floor;
 }
 
-export function updateFloor(layout: Layout, id: string, patch: { name?: unknown; pxPerMetre?: unknown }): Floor {
+export function updateFloor(
+  layout: Layout,
+  id: string,
+  patch: { name?: unknown; pxPerMetre?: unknown; x?: unknown; y?: unknown; floorHeight?: unknown },
+): Floor {
   const floor = findFloor(layout, id);
-  if (patch.name !== undefined) floor.name = cleanName(patch.name);
-  if (patch.pxPerMetre !== undefined) floor.pxPerMetre = patch.pxPerMetre === null ? null : positive(patch.pxPerMetre, 'Scale');
-  return floor;
+  // Validate everything before changing anything, so a bad field leaves the level as it was.
+  const name = patch.name !== undefined ? cleanName(patch.name) : floor.name;
+  const pxPerMetre = patch.pxPerMetre === undefined ? floor.pxPerMetre : patch.pxPerMetre === null ? null : positive(patch.pxPerMetre, 'Scale');
+  const x = patch.x !== undefined ? position(patch.x) : floor.x;
+  const y = patch.y !== undefined ? position(patch.y) : floor.y;
+  const height = patch.floorHeight !== undefined ? floorHeight(patch.floorHeight) : floor.floorHeight;
+  return Object.assign(floor, { name, pxPerMetre, x, y, floorHeight: height });
 }
 
 /** Puts the floors in the given order; every existing id must appear exactly once. */

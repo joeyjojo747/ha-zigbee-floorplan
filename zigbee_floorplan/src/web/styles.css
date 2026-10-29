@@ -14,6 +14,8 @@
   --end-device: #18a383;
   --halo: #ffffff;
   --plan-filter: none;
+  /* Blending drops the plans' paper colour, so stacked levels show through each other. */
+  --plan-blend: multiply;
   color-scheme: light dark;
 }
 
@@ -27,6 +29,7 @@
     --halo: #111113;
     /* Line-drawing floorplans are white; dim them so the markers stand out. */
     --plan-filter: invert(0.88) hue-rotate(180deg);
+    --plan-blend: screen;
   }
 }
 
@@ -113,7 +116,7 @@ input[type='checkbox'] { padding: 0; }
 
 .canvas { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; }
 .canvas svg { position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; }
-.canvas .plan { filter: var(--plan-filter); }
+.canvas .plan { filter: var(--plan-filter); mix-blend-mode: var(--plan-blend); }
 
 .link line { stroke-linecap: round; }
 .link.good line { stroke: var(--good); }
@@ -146,22 +149,20 @@ input[type='checkbox'] { padding: 0; }
 
 .empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 32px; text-align: center; color: var(--muted); }
 
-/* ---- All levels ---- */
+/* ---- Other levels and align mode ---- */
 
-.all-levels { flex: 1; min-height: 0; overflow: auto; }
-.level-grid { position: relative; display: grid; gap: 10px; padding: 10px; min-height: 100%; grid-auto-rows: minmax(280px, 1fr); }
-.level-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
-.level-panel-head { display: flex; gap: 8px; align-items: center; padding: 4px 6px 4px 10px; border-bottom: 1px solid var(--border); }
-.level-panel-head strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.level-panel .zoom button { width: 28px; height: 28px; font-size: 15px; }
-.level-panel .zoom { right: 8px; bottom: 8px; }
-.level-panel .scalebar { left: 8px; bottom: 8px; }
-/* Cross-level lines sit above the panels but never block clicks on them. */
-.cross-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 2; }
-/* Faint until a device is selected, so a dozen lines across the panels don't hide the plans. */
-.link.cross line { stroke-linecap: round; opacity: 0.4; }
-.link.cross.focus line { opacity: 0.9; }
-.link.cross.dimmed { opacity: 0.15; }
+.canvas .plan.faint { opacity: 0.25; }
+.canvas .plan.aligning { opacity: 0.6; }
+.marker.other-level { opacity: 0.45; }
+.align-frame { fill: transparent; stroke: var(--accent); cursor: move; }
+.align-handle { fill: var(--surface); stroke: var(--accent); }
+.align-handle.nw, .align-handle.se { cursor: nwse-resize; }
+.align-handle.ne, .align-handle.sw { cursor: nesw-resize; }
+
+.view-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; }
+.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.segmented button { border-radius: 0; padding: 4px 10px; background: var(--surface); color: var(--text); }
+.segmented button.active { background: var(--accent); color: #fff; }
 
 /* ---- Sidebar ---- */
 
@@ -198,6 +199,8 @@ input[type='checkbox'] { padding: 0; }
 .levels img, .levels .noimage { width: 96px; height: 64px; object-fit: contain; background: #fff; border: 1px solid var(--border); border-radius: 4px; flex: none; }
 .levels .noimage { display: flex; align-items: center; justify-content: center; font-size: 11px; color: #888; }
 .levels input { width: 100%; }
+.levels .floor-height { display: flex; align-items: center; gap: 4px; margin: 4px 0; }
+.levels .floor-height input { width: 70px; }
 .level-actions { display: flex; }
 .link-button { color: var(--accent); cursor: pointer; font-size: 12px; }
 .add-level { display: flex; flex-direction: column; gap: 8px; }
@@ -219,5 +222,4 @@ tr.clickable:hover { background: var(--bg); }
 @media (max-width: 760px) {
   .workspace { grid-template-columns: 1fr; grid-template-rows: minmax(360px, 60vh) auto; }
   .sidebar { border-left: 0; border-top: 1px solid var(--border); }
-  .level-grid { grid-template-columns: minmax(0, 1fr) !important; grid-auto-rows: 320px; }
 }

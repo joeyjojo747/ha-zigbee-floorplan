@@ -1,6 +1,6 @@
 // Right-hand panel: the selected device's details, or the device tray for placing devices.
 import { useState } from 'react';
-import { distanceMetres } from './FloorCanvas';
+import { linkDistance } from './geometry';
 import type { Floor, NetworkDevice, NetworkLink, Placement } from './api';
 
 const formatTime = (ms: number | null) => (ms ? new Date(ms).toLocaleString() : 'never');
@@ -9,7 +9,7 @@ const TYPE_LABEL = { Coordinator: 'Coordinator', Router: 'Router', EndDevice: 'E
 export function DeviceTray(props: {
   devices: NetworkDevice[];
   placements: Record<string, Placement>;
-  /** The level shown on its own, for the "On <level>" list; null in the all-levels view. */
+  /** The active level, for the "On <level>" list. */
   floor: Floor | null;
   canPlace: boolean;
   placing: string | null;
@@ -115,7 +115,7 @@ export function DeviceDetails(props: {
         {neighbours.map(({ link, other }) => {
           const role = link.parent === ieee ? 'child' : link.child === ieee ? 'parent' : 'neighbour';
           const otherFloor = floors.find((f) => f.id === placements[other]?.floorId);
-          const metres = floor && placement && placements[other] ? distanceMetres(floor, placement, placements[other]) : null;
+          const metres = linkDistance(floors, placements, ieee, other);
           const heard = (reporter: string) => link.reports.find((r) => r.reporter === reporter);
           const fmt = (lqi: number | null | undefined) => (lqi === undefined ? '—' : lqi ?? '?');
           return (

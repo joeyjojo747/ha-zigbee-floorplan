@@ -45,7 +45,8 @@ export function LevelsDialog(props: { layout: Layout; onChanged: () => Promise<v
   const placedOn = (id: string) => Object.values(layout.placements).filter((p) => p.floorId === id).length;
 
   return (
-    <div className="overlay" onPointerDown={(e) => e.target === e.currentTarget && props.onClose()}>
+    // Close on click, not pointerdown, so an edited field blurs (and saves) before the dialog goes.
+    <div className="overlay" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
       <div className="dialog" role="dialog" aria-label="Levels">
         <div className="details-head">
           <h2>Levels</h2>
@@ -53,6 +54,11 @@ export function LevelsDialog(props: { layout: Layout; onChanged: () => Promise<v
         </div>
         {error && <p className="error">{error}</p>}
 
+        {layout.floors.length > 0 && (
+          <p className="muted small">
+            Listed top to bottom. Height is floor to floor; use 0 for a level at the same height as the one above, e.g. a site plan.
+          </p>
+        )}
         <ul className="levels">
           {layout.floors.map((floor, i) => (
             <li key={floor.id}>
@@ -67,6 +73,25 @@ export function LevelsDialog(props: { layout: Layout; onChanged: () => Promise<v
                   {placedOn(floor.id)} device{placedOn(floor.id) === 1 ? '' : 's'} · {floor.pxPerMetre ? 'scale set' : 'no scale'}
                   {floor.width && ` · ${floor.width}×${floor.height}px`}
                 </div>
+                <label className="small floor-height">
+                  Height{' '}
+                  <input
+                    type="number" min="0" max="20" step="0.1" defaultValue={floor.floorHeight} aria-label="Floor-to-floor height in metres"
+                    onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                    onBlur={(e) => {
+                      const value = Number(e.target.value);
+                      if (e.target.value === '' || value === floor.floorHeight) return;
+                      if (!(value >= 0 && value <= 20)) {
+                        // Put the saved value back rather than leave a rejected one showing.
+                        e.target.value = String(floor.floorHeight);
+                        setError('Height must be between 0 and 20 m');
+                        return;
+                      }
+                      void run(() => api.updateFloor(floor.id, { floorHeight: value }));
+                    }}
+                  />{' '}
+                  m
+                </label>
                 <label className="link-button">
                   Replace image
                   <input type="file" accept={ACCEPT} hidden disabled={busy}

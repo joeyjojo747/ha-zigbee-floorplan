@@ -113,7 +113,7 @@ app.post<{ Body: { name?: unknown } }>('/api/floors', async (req, reply) => {
   return reply.code(201).send(floor);
 });
 
-app.patch<FloorParams & { Body: { name?: unknown; pxPerMetre?: unknown } }>('/api/floors/:id', async (req) =>
+app.patch<FloorParams & { Body: { name?: unknown; pxPerMetre?: unknown; x?: unknown; y?: unknown; floorHeight?: unknown } }>('/api/floors/:id', async (req) =>
   changeLayout((draft) => updateFloor(draft, req.params.id, req.body ?? {})),
 );
 

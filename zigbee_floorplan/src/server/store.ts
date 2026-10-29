@@ -1,7 +1,7 @@
 // Persists add-on state under DATA_DIR (/data in the add-on, which HA backs up).
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { emptyLayout, type Layout } from './layout.js';
+import { emptyLayout, normaliseLayout, type Layout } from './layout.js';
 import type { BridgeDevice, RawNetworkMap } from './networkmap.js';
 
 export interface ScanRecord {
@@ -22,7 +22,8 @@ export class Store {
   }
 
   async loadLayout(): Promise<Layout> {
-    return (await this.readJson<Layout>('layout.json')) ?? emptyLayout();
+    const stored = await this.readJson<Layout>('layout.json');
+    return stored ? normaliseLayout(stored) : emptyLayout();
   }
 
   async saveLayout(layout: Layout): Promise<void> {

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0
+
+- All levels now share one panel with one pan and zoom. The level tabs pick the level
+  you're working on; the others are drawn faint underneath, or hidden.
+- **Align**: drag a level to line it up with the others (e.g. onto the site plan) and
+  drag a corner to resize it. Resizing sets the level's scale.
+- **Floor heights** in the Levels dialog (floor to floor, 2.4 m by default; 0 for a level
+  at the same height as the one above, such as a site plan).
+- **3D** view: levels stacked by height, with links between floors drawn between them.
+- Link distances include the height between floors.
+- The side-by-side All levels view is replaced by the above.
+
 ## 0.3.0
 
 - **All levels** view: every level side by side, with links between levels drawn

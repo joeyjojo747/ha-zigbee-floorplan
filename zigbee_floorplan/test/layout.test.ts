@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addFloor, deleteFloor, emptyLayout, LayoutError, removePlacement, reorderFloors, setFloorImage, setPlacement, updateFloor,
+  addFloor, deleteFloor, emptyLayout, LayoutError, normaliseLayout, removePlacement, reorderFloors, setFloorImage, setPlacement,
+  updateFloor, type Layout,
 } from '../src/server/layout.js';
 
 const layoutWithFloors = (...names: string[]) => {
@@ -41,6 +42,35 @@ describe('floors', () => {
     expect(layout.floors[0].pxPerMetre).toBeNull();
     expectError(() => updateFloor(layout, floors[0].id, { pxPerMetre: -1 }), 400, /Scale/);
     expectError(() => updateFloor(layout, 'nope', { name: 'x' }), 404, /No level/);
+  });
+
+  it('gives new levels a position and default height', () => {
+    const { floors } = layoutWithFloors('Ground');
+    expect(floors[0]).toMatchObject({ x: 0, y: 0, floorHeight: 2.4 });
+  });
+
+  it('sets position and height', () => {
+    const { layout, floors } = layoutWithFloors('Ground');
+    updateFloor(layout, floors[0].id, { x: -3.5, y: 12, floorHeight: 0 });
+    expect(layout.floors[0]).toMatchObject({ x: -3.5, y: 12, floorHeight: 0 });
+  });
+
+  it('rejects bad position and height', () => {
+    const { layout, floors } = layoutWithFloors('Ground');
+    expectError(() => updateFloor(layout, floors[0].id, { x: 'a' }), 400, /Position/);
+    expectError(() => updateFloor(layout, floors[0].id, { y: Infinity }), 400, /Position/);
+    expectError(() => updateFloor(layout, floors[0].id, { floorHeight: -1 }), 400, /Height/);
+    expectError(() => updateFloor(layout, floors[0].id, { floorHeight: 21 }), 400, /Height/);
+  });
+
+  it('fills in position and height for layouts saved before 0.4.0', () => {
+    const old = {
+      floors: [{ id: 'a', name: 'G', image: null, width: null, height: null, pxPerMetre: null, imageVersion: 0 }],
+      placements: { p: { floorId: 'a', x: 0.5, y: 0.5 } },
+    };
+    const layout = normaliseLayout(old as unknown as Layout);
+    expect(layout.floors[0]).toMatchObject({ x: 0, y: 0, floorHeight: 2.4 });
+    expect(layout.placements.p).toEqual({ floorId: 'a', x: 0.5, y: 0.5 });
   });
 
   it('reorders only with a complete list of ids', () => {
