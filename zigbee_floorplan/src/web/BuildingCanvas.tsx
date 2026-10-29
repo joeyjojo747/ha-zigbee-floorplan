@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as Reac
 import { floorImageUrl, type Floor, type NetworkDevice, type NetworkLink, type Placement, type Wall } from './api';
 import {
   buildingToImage, clampFraction, elevations, floorRect, floorTransform, imageToBuilding, isSized, metresPerPx, placementPoint, project,
-  rectTransform, resizeFromCorner, type Corner, type Point, type Rect, type SizedFloor, type ViewMode,
+  rectTransform, resizeFromCorner, shownLevels, type Corner, type Point, type Rect, type SizedFloor, type ViewMode,
 } from './geometry';
 
 export interface LinkFilters {
@@ -14,15 +14,14 @@ export interface LinkFilters {
   unmeasured: boolean;
 }
 
-export type OtherLevels = 'hidden' | 'faint';
-
 interface Props {
   /** All levels, top to bottom. */
   floors: Floor[];
   /** The level being edited; must have an image. */
   active: SizedFloor;
   mode: ViewMode;
-  others: OtherLevels;
+  /** Ids of the levels turned off (the active level is drawn regardless). */
+  hidden: string[];
   devices: Map<string, NetworkDevice>;
   links: NetworkLink[];
   placements: Record<string, Placement>;
@@ -57,15 +56,14 @@ const NICE_METRES = [0.5, 1, 2, 5, 10, 20, 50, 100];
 const CORNERS: Corner[] = ['nw', 'ne', 'sw', 'se'];
 
 export function BuildingCanvas(props: Props) {
-  const { floors, active, mode, others, devices, links, placements, filters, selected, placing, scalePoints, align } = props;
+  const { floors, active, mode, hidden, devices, links, placements, filters, selected, placing, scalePoints, align } = props;
   const wallEdit = !!props.wallEdit && mode === '2d';
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const z = elevations(floors);
-  const sized = floors.filter(isSized);
-  // While aligning, the other levels are always shown so there's something to align to.
-  const shown = align || others === 'faint' ? sized : [active];
+  // While aligning, every level is shown so there's something to align to.
+  const shown = shownLevels(floors, active, align ? [] : hidden);
   const edit = mode === '2d';
 
   const fit = (): View => {
@@ -255,14 +253,11 @@ export function BuildingCanvas(props: Props) {
   }
 
   const visibleLinks = links.filter((l) => positions.has(l.a) && positions.has(l.b) && linkShown(l, filters));
-  // Neighbours on other levels, per device on this level; shown as badges when those levels are hidden.
+  // Neighbours placed on levels that aren't drawn, per drawn device; shown as badges.
   const otherLevel = new Map<string, number>();
-  if (shown.length === 1) {
-    for (const l of links) {
-      for (const [here, there] of [[l.a, l.b], [l.b, l.a]]) {
-        const p = placements[there];
-        if (positions.has(here) && p && p.floorId !== active.id) otherLevel.set(here, (otherLevel.get(here) ?? 0) + 1);
-      }
+  for (const l of links) {
+    for (const [here, there] of [[l.a, l.b], [l.b, l.a]]) {
+      if (positions.has(here) && placements[there] && !positions.has(there)) otherLevel.set(here, (otherLevel.get(here) ?? 0) + 1);
     }
   }
 
@@ -377,7 +372,7 @@ export function BuildingCanvas(props: Props) {
                   {cross && (
                     <text x={r + 3 * k} y={-r} fontSize={11 * k} strokeWidth={3 * k} className="halo cross">
                       ⇅{cross}
-                      <title>{`${cross} link${cross > 1 ? 's' : ''} to devices on other levels`}</title>
+                      <title>{`${cross} link${cross > 1 ? 's' : ''} to devices on hidden levels`}</title>
                     </text>
                   )}
                   <title>{`${device ? `${device.name} (${device.type}, ${device.status})` : `${ieee} — not in the last scan`}${other ? ` · ${levelOf.get(ieee)!.name}` : ''}`}</title>

@@ -1,7 +1,7 @@
 // Top level: header with levels and scan control, the floorplan (or list view) and the sidebar.
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { api, floorImageUrl, type Layout, type NetworkResponse, type Status, type Wall } from './api';
-import { BuildingCanvas, type LinkFilters, type OtherLevels } from './BuildingCanvas';
+import { BuildingCanvas, type LinkFilters } from './BuildingCanvas';
 import { alignPatch, floorRect, isSized, rescaleAboutCentre, type Point, type Rect, type ViewMode } from './geometry';
 import { LevelsDialog } from './LevelsDialog';
 import { detectWalls } from './walls';
@@ -41,7 +41,10 @@ export function App() {
   // 0.3.0 remembered 'all' for its side-by-side view, which the plan view now replaces.
   const [view, setView] = useState<'plan' | 'list'>(() => (remembered<string>('view', 'plan') === 'list' ? 'list' : 'plan'));
   const [mode, setMode] = useState<ViewMode>(() => remembered('mode', '2d'));
-  const [others, setOthers] = useState<OtherLevels>(() => remembered('others', 'faint'));
+  // Ids of the levels turned off. 0.5.0 and earlier had one Faint/Hidden setting for every
+  // other level; 'hidden' becomes every level off once the levels have loaded.
+  const [hidden, setHidden] = useState<string[]>(() => remembered<string[] | null>('hidden', null) ?? []);
+  const hideAllOnLoad = useRef(remembered<string[] | null>('hidden', null) === null && remembered<string>('others', 'faint') === 'hidden');
   // While aligning: the draft position of each level moved so far, so the level tabs can
   // switch which level is being aligned. Done saves them all; Cancel drops them.
   const [drafts, setDrafts] = useState<Record<string, Rect> | null>(null);
@@ -59,7 +62,12 @@ export function App() {
   useEffect(() => remember('floor', floorId), [floorId]);
   useEffect(() => remember('filters', filters), [filters]);
   useEffect(() => remember('mode', mode), [mode]);
-  useEffect(() => remember('others', others), [others]);
+  useEffect(() => remember('hidden', hidden), [hidden]);
+  useEffect(() => {
+    if (!hideAllOnLoad.current || !layout.floors.length) return;
+    hideAllOnLoad.current = false;
+    setHidden(layout.floors.map((f) => f.id));
+  }, [layout.floors]);
 
   const report = (err: unknown) => setError((err as Error).message);
 
@@ -233,7 +241,8 @@ export function App() {
   const devices = new Map(network?.devices.map((d) => [d.ieee, d]));
   const placingName = placing ? devices.get(placing)?.name ?? placing : null;
   const canPlace = isSized(floor);
-  const otherSized = layout.floors.filter((f) => f.id !== floor?.id && isSized(f)).length > 0;
+  const sizedLevels = layout.floors.filter(isSized);
+  const otherSized = sizedLevels.some((f) => f.id !== floor?.id);
 
   return (
     <div className="app">
@@ -310,14 +319,25 @@ export function App() {
                           <button key={m} className={mode === m ? 'active' : ''} onClick={() => { cancelModes(); setMode(m); }}>{m.toUpperCase()}</button>
                         ))}
                       </span>
-                      {layout.floors.length > 1 && (
-                        <label>
-                          Other levels{' '}
-                          <select value={others} onChange={(e) => setOthers(e.target.value as OtherLevels)}>
-                            <option value="faint">Faint</option>
-                            <option value="hidden">Hidden</option>
-                          </select>
-                        </label>
+                      {sizedLevels.length > 1 && (
+                        <span className="level-toggles" role="group" aria-label="Show levels">
+                          Show
+                          {sizedLevels.map((f) => {
+                            const on = f.id === floor?.id || !hidden.includes(f.id);
+                            return (
+                              <button
+                                key={f.id}
+                                className={`chip${on ? ' on' : ''}`}
+                                aria-pressed={on}
+                                disabled={f.id === floor?.id}
+                                title={f.id === floor?.id ? 'The level you are working on is always shown' : on ? `Hide ${f.name}` : `Show ${f.name}`}
+                                onClick={() => setHidden((h) => (on ? [...h, f.id] : h.filter((id) => id !== f.id)))}
+                              >
+                                {on ? '✓ ' : ''}{f.name}
+                              </button>
+                            );
+                          })}
+                        </span>
                       )}
                       {mode === '2d' && isSized(floor) && (
                         <>
@@ -348,7 +368,7 @@ export function App() {
               <ThreeView
                 floors={layout.floors}
                 active={floor}
-                others={others}
+                hidden={hidden}
                 devices={devices}
                 links={network?.links ?? []}
                 placements={layout.placements}
@@ -362,7 +382,7 @@ export function App() {
                 floors={layout.floors}
                 active={floor}
                 mode={mode}
-                others={others}
+                hidden={hidden}
                 align={align}
                 onAlign={(rect) => floor && setDrafts((d) => ({ ...d, [floor.id]: rect }))}
                 wallEdit={walling}

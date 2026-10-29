@@ -6,13 +6,14 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { floorImageUrl, type Floor, type NetworkDevice, type NetworkLink, type Placement } from './api';
-import { linkShown, type LinkFilters, type OtherLevels } from './BuildingCanvas';
-import { elevations, floorRect, imageToBuilding, isSized, metresPerPx, placementPoint, type SizedFloor } from './geometry';
+import { linkShown, type LinkFilters } from './BuildingCanvas';
+import { elevations, floorRect, imageToBuilding, metresPerPx, placementPoint, shownLevels, type SizedFloor } from './geometry';
 
 interface Props {
   floors: Floor[];
   active: SizedFloor;
-  others: OtherLevels;
+  /** Ids of the levels turned off (the active level is drawn regardless). */
+  hidden: string[];
   devices: Map<string, NetworkDevice>;
   links: NetworkLink[];
   placements: Record<string, Placement>;
@@ -37,7 +38,7 @@ interface Stage {
 const cssColour = (name: string) => new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888');
 
 export function ThreeView(props: Props) {
-  const { floors, active, others, devices, links, placements, filters, selected } = props;
+  const { floors, active, hidden, devices, links, placements, filters, selected } = props;
   const containerRef = useRef<HTMLDivElement>(null);
   const stage = useRef<Stage | null>(null);
   const fittedKey = useRef('');
@@ -117,7 +118,7 @@ export function ThreeView(props: Props) {
     clearContent(s.content);
     const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const z = elevations(floors);
-    const shown = (others === 'hidden' ? [active] : floors.filter(isSized)) as SizedFloor[];
+    const shown = shownLevels(floors, active, hidden);
     const box = new THREE.Box3();
     const unitBox = new THREE.BoxGeometry(1, 1, 1);
 
@@ -219,7 +220,7 @@ export function ThreeView(props: Props) {
       s.controls.update();
     }
     s.render();
-  }, [floors, active, others, devices, links, placements, filters, selected]);
+  }, [floors, active, hidden, devices, links, placements, filters, selected]);
 
   return (
     <div className="canvas three" ref={containerRef}>

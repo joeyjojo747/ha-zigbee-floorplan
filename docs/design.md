@@ -157,7 +157,7 @@ heights — modelled on UniFi Design Center's align mode and 3D view.
 
 - The plan view is the single panel. Level tabs pick the **active level**; the
   separate All levels tab and grid are removed.
-- **Other levels:** hidden, or drawn faint under the active level.
+- **Shown levels (0.5.1):** a Show chip per level with an image turns it on or off, in 2D and 3D. The active level is always shown, and every level is shown while aligning. Remembered per browser.
 - **2D:** one SVG in building metres. Levels are drawn bottom to top; the active level
   is solid, others faint. Active-level devices are full strength, other levels' devices
   dimmed. A link is drawn when both its devices are visible. Placing, dragging and the
@@ -210,7 +210,7 @@ count the walls each link passes through.
   textured with its plan; walls are boxes as tall as the level's `floorHeight` (1 m when
   0); devices are coloured markers 1 m above their level; links are lines coloured by
   quality. Orbit, pan and zoom with OrbitControls; hovering shows a device's name;
-  clicking selects it. Other levels are see-through, or hidden.
+  clicking selects it. Other shown levels are see-through.
 - **Wall counts:** for a link on one level, the number of that level's walls its straight
   line crosses (touching within 2% of either end doesn't count); for a link between
   levels, the number of floors it passes through. Shown with each link in the device panel.

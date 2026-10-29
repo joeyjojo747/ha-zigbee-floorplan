@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+
+- **Show levels**: the Faint/Hidden setting is replaced by a chip per level, so you can
+  turn each level on or off, in 2D and 3D. The level you're working on is always shown.
+  If you had other levels hidden, they start turned off.
+
 ## 0.5.0
 
 - **Walls**: detect the walls on a plan automatically (in the browser, nothing is

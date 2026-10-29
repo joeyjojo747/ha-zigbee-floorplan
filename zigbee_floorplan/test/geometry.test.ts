@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Floor } from '../src/server/layout.js';
 import {
   alignPatch, buildingToImage, clampFraction, elevations, floorRect, floorTransform, imageToBuilding, linkDistance, metresPerPx,
-  placementPoint, project, rescaleAboutCentre, resizeFromCorner, type SizedFloor,
+  placementPoint, project, rescaleAboutCentre, resizeFromCorner, shownLevels, type SizedFloor,
 } from '../src/web/geometry.js';
 
 // A 400×200 px level at (10, 5) m, 20 px per metre: 20 × 10 m.
@@ -64,5 +64,12 @@ describe('geometry', () => {
     expect(linkDistance(fs, p, 'a', 'b')).toBeCloseTo(Math.hypot(3, 2, 2.4));
     fs[1].pxPerMetre = null;
     expect(linkDistance(fs, p, 'a', 'b')).toBeNull();
+  });
+
+  it('shows the levels with images except hidden ones, always including the active level', () => {
+    const fs = [floor({ id: 'a' }), floor({ id: 'b', image: null }), floor({ id: 'c' }), floor({ id: 'd' })];
+    expect(shownLevels(fs, fs[0], []).map((f) => f.id)).toEqual(['a', 'c', 'd']);
+    expect(shownLevels(fs, fs[0], ['c']).map((f) => f.id)).toEqual(['a', 'd']);
+    expect(shownLevels(fs, fs[2], ['a', 'c', 'd']).map((f) => f.id)).toEqual(['c']);
   });
 });

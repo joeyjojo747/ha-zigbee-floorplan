@@ -19,6 +19,10 @@ export const LIFT = 8;
 
 export const isSized = (floor: Floor | null | undefined): floor is SizedFloor => !!floor?.image && !!floor.width && !!floor.height;
 
+/** The levels drawn: those with an image that aren't turned off, top to bottom. The active level is always drawn. */
+export const shownLevels = (floors: Floor[], active: SizedFloor, hidden: string[]): SizedFloor[] =>
+  floors.filter((f): f is SizedFloor => isSized(f) && (f.id === active.id || !hidden.includes(f.id)));
+
 /** Image pixels per building metre, falling back to the unscaled width. */
 const pxPerMetre = (floor: SizedFloor) => floor.pxPerMetre ?? floor.width / UNSCALED_WIDTH_M;
 
