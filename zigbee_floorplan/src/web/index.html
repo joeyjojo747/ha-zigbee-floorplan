@@ -4,6 +4,15 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Zigbee Floorplan</title>
+    <script>
+      // Set the theme before the first paint; theme.ts and App take over once loaded.
+      (function () {
+        var choice = 'auto';
+        try { choice = JSON.parse(localStorage.getItem('zigbee-floorplan:theme')) || 'auto'; } catch (e) {}
+        if (['light', 'dark', 'hologram'].indexOf(choice) < 0) choice = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.dataset.theme = choice;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

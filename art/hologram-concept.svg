@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800" font-family="DejaVu Sans, sans-serif">
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#0c1c36" stroke-width="1"/>
+    </pattern>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <radialGradient id="haze" cx="50%" cy="60%" r="60%">
+      <stop offset="0" stop-color="#0d3a66" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#030712" stop-opacity="0"/>
+    </radialGradient>
+    <!-- One level's plan, in projected pixels: outline and interior walls -->
+    <g id="plan">
+      <path d="M0 0L291 168L121 266L-170 98Z"/>
+      <path d="M109 63L-61 161M194 112L97 168M36 105L-73 42M194 224L12 119"/>
+    </g>
+    <g id="posts">
+      <path d="M0 0v-34M291 168v-34M121 266v-34M-170 98v-34M109 63v-34M-61 161v-34M194 112v-34M97 168v-34M36 105v-34M-73 42v-34M194 224v-34M12 119v-34"/>
+    </g>
+  </defs>
+
+  <rect width="1280" height="800" fill="#030712"/>
+  <rect y="120" width="900" height="680" fill="url(#grid)"/>
+  <rect y="120" width="900" height="680" fill="url(#haze)"/>
+
+  <!-- Header -->
+  <rect width="1280" height="64" fill="#050c1a"/>
+  <path d="M0 64H1280" stroke="#1f4f80" filter="url(#glow)"/>
+  <text x="24" y="40" font-size="20" fill="#7fe8ff" filter="url(#glow)" letter-spacing="1">ZIGBEE FLOORPLAN</text>
+  <g font-size="13" fill="#9cc7e8">
+    <rect x="250" y="18" width="64" height="28" rx="4" fill="none" stroke="#1f4f80"/><text x="268" y="37">First</text>
+    <rect x="322" y="18" width="78" height="28" rx="4" fill="#0e3a5c" stroke="#5fe1ff" filter="url(#glow)"/><text x="338" y="37" fill="#e6fbff">Ground</text>
+    <rect x="408" y="18" width="56" height="28" rx="4" fill="none" stroke="#1f4f80"/><text x="424" y="37">Site</text>
+    <rect x="472" y="18" width="110" height="28" rx="4" fill="none" stroke="#1f4f80"/><text x="488" y="37">Lower ground</text>
+    <rect x="590" y="18" width="76" height="28" rx="4" fill="none" stroke="#1f4f80"/><text x="604" y="37">Levels…</text>
+    <rect x="674" y="18" width="50" height="28" rx="4" fill="none" stroke="#1f4f80"/><text x="688" y="37">List</text>
+  </g>
+  <g font-size="12">
+    <rect x="830" y="20" width="150" height="24" rx="12" fill="none" stroke="#39ff9c" filter="url(#glow)"/>
+    <text x="846" y="37" fill="#9dffc9">MQTT connected</text>
+    <text x="996" y="37" fill="#5f84a8">Last scan 10:42</text>
+    <rect x="1104" y="18" width="34" height="28" rx="4" fill="#0e3a5c" stroke="#5fe1ff" filter="url(#glow)"/>
+    <!-- theme icon: half moon -->
+    <circle cx="1121" cy="32" r="7" fill="none" stroke="#e6fbff" stroke-width="1.6"/>
+    <path d="M1121 25a7 7 0 0 1 0 14z" fill="#e6fbff"/>
+    <rect x="1148" y="18" width="110" height="28" rx="4" fill="none" stroke="#5fe1ff"/>
+    <text x="1170" y="37" fill="#bff3ff">Scan now</text>
+  </g>
+
+  <!-- Toolbar -->
+  <g font-size="12" fill="#7fa6c9">
+    <text x="24" y="98"><tspan fill="#39ff9c">━ good</tspan>   <tspan fill="#ffb347">━ fair</tspan>   <tspan fill="#ff4d6d">━ poor</tspan>   <tspan fill="#5f84a8">┅ unmeasured</tspan></text>
+    <rect x="330" y="82" width="64" height="24" rx="4" fill="none" stroke="#1f4f80"/>
+    <rect x="362" y="82" width="32" height="24" fill="#0e3a5c" stroke="#5fe1ff" filter="url(#glow)"/>
+    <text x="340" y="99">2D</text><text x="368" y="99" fill="#e6fbff">3D</text>
+    <text x="412" y="99">Show</text>
+    <rect x="450" y="82" width="66" height="24" rx="12" fill="none" stroke="#5fe1ff"/><text x="462" y="99" fill="#cfefff">✓ First</text>
+    <rect x="522" y="82" width="80" height="24" rx="12" fill="#0e3a5c" stroke="#5fe1ff"/><text x="534" y="99" fill="#e6fbff">✓ Ground</text>
+    <rect x="608" y="82" width="52" height="24" rx="12" fill="none" stroke="#1f4f80"/><text x="620" y="99">Site</text>
+  </g>
+
+  <!-- Upper level (First) -->
+  <g transform="translate(440 250)" fill="none" stroke-linejoin="round">
+    <use href="#plan" stroke="#2d7fc4" stroke-width="1.2" opacity="0.7"/>
+    <use href="#posts" stroke="#2d7fc4" stroke-width="1" opacity="0.5"/>
+    <use href="#plan" transform="translate(0 -34)" stroke="#5fb8ff" stroke-width="1" opacity="0.5"/>
+  </g>
+
+  <!-- Ground (active) -->
+  <g transform="translate(440 480)" fill="none" stroke-linejoin="round" filter="url(#glow)">
+    <path d="M0 0L291 168L121 266L-170 98Z" fill="#0a3050" fill-opacity="0.35" stroke="none"/>
+    <use href="#plan" stroke="#5fe1ff" stroke-width="1.6"/>
+    <use href="#posts" stroke="#5fe1ff" stroke-width="1.4" opacity="0.9"/>
+    <use href="#plan" transform="translate(0 -34)" stroke="#9af0ff" stroke-width="1.4"/>
+  </g>
+
+  <!-- Floor-to-floor guides -->
+  <g stroke="#1f4f80" stroke-dasharray="3 5">
+    <path d="M440 480V250M731 648V418M561 746V516M270 578V348"/>
+  </g>
+
+  <!-- Links -->
+  <g fill="none" stroke-linecap="round" filter="url(#glow)">
+    <path d="M452 515L464 634" stroke="#39ff9c" stroke-width="2.5"/>
+    <path d="M452 515L634 634" stroke="#39ff9c" stroke-width="2.5"/>
+    <path d="M634 634L549 683" stroke="#ffb347" stroke-width="2"/>
+    <path d="M464 634L549 683" stroke="#5f84a8" stroke-width="1.5" stroke-dasharray="4 5"/>
+    <path d="M452 515L549 341" stroke="#39ff9c" stroke-width="2"/>
+    <path d="M367 334L549 341" stroke="#ff4d6d" stroke-width="2"/>
+  </g>
+
+  <!-- Devices -->
+  <g filter="url(#soft)">
+    <rect x="443" y="506" width="18" height="18" rx="3" fill="#c48bff"/>
+    <circle cx="634" cy="634" r="8" fill="#4da8ff"/>
+    <circle cx="549" cy="341" r="8" fill="#4da8ff"/>
+    <circle cx="464" cy="634" r="6" fill="#39ff9c"/>
+    <circle cx="549" cy="683" r="6" fill="#39ff9c"/>
+    <circle cx="367" cy="334" r="6" fill="#39ff9c"/>
+  </g>
+  <circle cx="634" cy="634" r="15" fill="none" stroke="#e6fbff" stroke-width="1.5" filter="url(#glow)"/>
+  <g font-size="11" fill="#bfe9ff">
+    <text x="470" y="512">Coordinator</text>
+    <text x="652" y="630" fill="#ffffff">plug_r30</text>
+    <text x="566" y="338">plug_r40</text>
+    <text x="400" y="652">parents_room_light</text>
+    <text x="565" y="700">laundry_door</text>
+    <text x="300" y="326">xiaomi_button</text>
+  </g>
+
+  <text x="24" y="784" font-size="11" fill="#3f6488">Drag to orbit · right-drag to pan · scroll to zoom · click a device</text>
+
+  <!-- Sidebar -->
+  <rect x="900" y="64" width="380" height="736" fill="#040b18"/>
+  <path d="M900 64V800" stroke="#1f4f80" filter="url(#glow)"/>
+  <g font-size="13">
+    <rect x="920" y="84" width="340" height="34" rx="4" fill="none" stroke="#1f4f80"/>
+    <text x="934" y="106" fill="#3f6488">Find device</text>
+
+    <rect x="920" y="136" width="340" height="220" rx="6" fill="#06142a" stroke="#5fe1ff" filter="url(#glow)"/>
+    <text x="938" y="164" font-size="16" fill="#e6fbff">plug_r30</text>
+    <text x="938" y="184" font-size="12" fill="#6fa3cc">Router · Ground · online</text>
+    <path d="M938 198H1242" stroke="#1f4f80"/>
+    <text x="938" y="222" font-size="12" fill="#6fa3cc">Links</text>
+    <circle cx="944" cy="246" r="4" fill="#39ff9c"/><text x="956" y="250" fill="#cfefff">Coordinator</text><text x="1150" y="250" fill="#9dffc9">LQI 142</text>
+    <text x="956" y="268" font-size="11" fill="#4f7aa0">8.4 m · 2 walls</text>
+    <circle cx="944" cy="292" r="4" fill="#ffb347"/><text x="956" y="296" fill="#cfefff">laundry_door</text><text x="1150" y="296" fill="#ffd28f">LQI 71</text>
+    <text x="956" y="314" font-size="11" fill="#4f7aa0">4.1 m · 1 wall</text>
+    <text x="938" y="342" font-size="12" fill="#7fe8ff">Move · Remove</text>
+
+    <text x="920" y="392" font-size="14" fill="#9cc7e8">On Ground (8)</text>
+    <g font-size="12" fill="#bfe9ff">
+      <rect x="922" y="408" width="10" height="10" rx="2" fill="#c48bff"/><text x="942" y="418">Coordinator</text>
+      <circle cx="927" cy="440" r="5" fill="#4da8ff"/><text x="942" y="444">plug_r30</text>
+      <circle cx="927" cy="466" r="5" fill="#4da8ff"/><text x="942" y="470">plug_r40</text>
+      <circle cx="927" cy="492" r="5" fill="#39ff9c"/><text x="942" y="496">parents_room_light</text>
+      <circle cx="927" cy="518" r="5" fill="#39ff9c"/><text x="942" y="522">laundry_door</text>
+      <circle cx="927" cy="544" r="5" fill="#39ff9c"/><text x="942" y="548">xiaomi_button</text>
+    </g>
+  </g>
+
+  <!-- Theme menu, open from the half-moon button -->
+  <g font-size="13">
+    <rect x="990" y="54" width="170" height="150" rx="6" fill="#071a30" stroke="#5fe1ff" filter="url(#glow)"/>
+    <text x="1006" y="78" font-size="11" fill="#5f84a8" letter-spacing="1">THEME</text>
+    <text x="1006" y="104" fill="#9cc7e8">Auto (system)</text>
+    <text x="1006" y="132" fill="#9cc7e8">Light</text>
+    <text x="1006" y="160" fill="#9cc7e8">Dark</text>
+    <rect x="998" y="170" width="154" height="26" rx="4" fill="#0e3a5c"/>
+    <text x="1006" y="188" fill="#e6fbff">Hologram</text>
+    <text x="1132" y="188" fill="#7fe8ff">✓</text>
+  </g>
+</svg>

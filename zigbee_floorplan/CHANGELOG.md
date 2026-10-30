@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+
+- **Themes**: a theme menu in the header (the half-moon button) chooses Auto, Light, Dark
+  or the new **Hologram** theme: a dark blueprint with glowing cyan walls, neon links and
+  devices, in 2D and 3D.
+
 ## 0.5.1
 
 - **Show levels**: the Faint/Hidden setting is replaced by a chip per level, so you can

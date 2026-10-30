@@ -216,6 +216,19 @@ count the walls each link passes through.
   levels, the number of floors it passes through. Shown with each link in the device panel.
 - Not in this version: rooms, doors and windows as objects, coverage.
 
+## Themes (0.6.0)
+
+- A theme menu in the header offers Auto (follows the system), Light, Dark and Hologram.
+  The choice is remembered per browser. The resolved theme is `data-theme` on `<html>`,
+  set by an inline script in `index.html` before the first paint and kept in step by App
+  (in a layout effect, so the 3D view reads the new colours when it rebuilds).
+- **Hologram:** navy background with a blueprint grid; cyan outlines and glow on the
+  controls; neon link and device colours. In 2D the plans are inverted and tinted cyan by a
+  CSS filter, and the active level's walls are traced as glowing lines. In 3D the plan
+  textures are recoloured on a canvas (ink becomes light), walls are additive translucent
+  boxes with bright edges, and devices get additive halos instead of a bloom pass, so the
+  view still renders only on change.
+
 ## Phases
 
 1. **Scaffold** (0.1.x) — add-on packaging, MQTT client, scan + normalised

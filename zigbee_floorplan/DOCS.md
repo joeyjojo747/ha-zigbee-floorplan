@@ -66,3 +66,9 @@ Mouse wheel zooms, dragging the background pans, and the buttons in the corner z
 
 Levels, images and placements are stored in the add-on's data folder and included in
 Home Assistant backups.
+
+## Theme
+
+The half-moon button in the header picks the theme: **Auto** follows your device's light
+or dark setting, or choose **Light**, **Dark** or **Hologram** (a dark blueprint look with
+glowing lines, in 2D and 3D). The choice is remembered in your browser.

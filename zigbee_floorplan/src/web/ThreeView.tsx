@@ -8,12 +8,14 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { floorImageUrl, type Floor, type NetworkDevice, type NetworkLink, type Placement } from './api';
 import { linkShown, type LinkFilters } from './BuildingCanvas';
 import { elevations, floorRect, imageToBuilding, metresPerPx, placementPoint, shownLevels, type SizedFloor } from './geometry';
+import type { Theme } from './theme';
 
 interface Props {
   floors: Floor[];
   active: SizedFloor;
   /** Ids of the levels turned off (the active level is drawn regardless). */
   hidden: string[];
+  theme: Theme;
   devices: Map<string, NetworkDevice>;
   links: NetworkLink[];
   placements: Record<string, Placement>;
@@ -38,7 +40,7 @@ interface Stage {
 const cssColour = (name: string) => new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888');
 
 export function ThreeView(props: Props) {
-  const { floors, active, hidden, devices, links, placements, filters, selected } = props;
+  const { floors, active, hidden, theme, devices, links, placements, filters, selected } = props;
   const containerRef = useRef<HTMLDivElement>(null);
   const stage = useRef<Stage | null>(null);
   const fittedKey = useRef('');
@@ -116,11 +118,15 @@ export function ThreeView(props: Props) {
     const s = stage.current;
     if (!s) return;
     clearContent(s.content);
-    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const dark = theme === 'dark';
+    const holo = theme === 'hologram';
     const z = elevations(floors);
     const shown = shownLevels(floors, active, hidden);
     const box = new THREE.Box3();
     const unitBox = new THREE.BoxGeometry(1, 1, 1);
+    // Hologram draws walls as glowing wireframes: faint additive faces plus bright edges.
+    const unitEdges = new THREE.EdgesGeometry(unitBox);
+    const additive = { transparent: true, blending: THREE.AdditiveBlending, depthWrite: false };
 
     for (const floor of shown) {
       const isActive = floor.id === active.id;
@@ -128,20 +134,23 @@ export function ThreeView(props: Props) {
       const rect = floorRect(floor);
 
       // The plan as a floor slab.
-      const key = `${floor.id}:${floor.imageVersion}`;
+      const key = `${floor.id}:${floor.imageVersion}${holo ? ':holo' : ''}`;
       let texture = s.textures.get(key);
       if (!texture) {
         // Redraw the live stage once the image arrives (the scene may have been rebuilt since).
-        texture = new THREE.TextureLoader().load(floorImageUrl(floor), () => requestAnimationFrame(() => stage.current?.render()));
+        const redraw = () => requestAnimationFrame(() => stage.current?.render());
+        texture = holo ? hologramTexture(floorImageUrl(floor), redraw) : new THREE.TextureLoader().load(floorImageUrl(floor), redraw);
         texture.colorSpace = THREE.SRGBColorSpace;
         s.textures.set(key, texture);
       }
       const slab = new THREE.Mesh(
         new THREE.PlaneGeometry(rect.w, rect.h),
-        new THREE.MeshBasicMaterial({
-          map: texture, side: THREE.DoubleSide, transparent: true, opacity: isActive ? 1 : 0.4, depthWrite: isActive,
-          color: dark ? 0x8a8a90 : 0xffffff,
-        }),
+        new THREE.MeshBasicMaterial(holo
+          ? { map: texture, side: THREE.DoubleSide, ...additive, opacity: isActive ? 0.9 : 0.35 }
+          : {
+            map: texture, side: THREE.DoubleSide, transparent: true, opacity: isActive ? 1 : 0.4, depthWrite: isActive,
+            color: dark ? 0x8a8a90 : 0xffffff,
+          }),
       );
       slab.rotation.x = -Math.PI / 2;
       slab.position.set(rect.x + rect.w / 2, elev, rect.y + rect.h / 2);
@@ -150,9 +159,12 @@ export function ThreeView(props: Props) {
 
       // Walls, as tall as the level (1 m for a level of height 0, such as a site plan).
       const wallHeight = floor.floorHeight > 0 ? floor.floorHeight : 1;
-      const wallMaterial = new THREE.MeshLambertMaterial({
-        color: dark ? 0x9aa3b2 : 0xd5dae2, transparent: !isActive, opacity: isActive ? 1 : 0.3, depthWrite: isActive,
-      });
+      const wallMaterial = holo
+        ? new THREE.MeshBasicMaterial({ color: 0x5fe1ff, ...additive, opacity: isActive ? 0.1 : 0.04 })
+        : new THREE.MeshLambertMaterial({
+          color: dark ? 0x9aa3b2 : 0xd5dae2, transparent: !isActive, opacity: isActive ? 1 : 0.3, depthWrite: isActive,
+        });
+      const edgeMaterial = holo ? new THREE.LineBasicMaterial({ color: isActive ? 0x9af0ff : 0x2d7fc4, ...additive, opacity: isActive ? 0.9 : 0.5 }) : null;
       for (const w of floor.walls) {
         const a = imageToBuilding(floor, { x: w.x1, y: w.y1 });
         const b = imageToBuilding(floor, { x: w.x2, y: w.y2 });
@@ -163,6 +175,13 @@ export function ThreeView(props: Props) {
         wall.position.set((a.x + b.x) / 2, elev + wallHeight / 2, (a.y + b.y) / 2);
         wall.rotation.y = -Math.atan2(b.y - a.y, b.x - a.x);
         s.content.add(wall);
+        if (edgeMaterial) {
+          const edges = new THREE.LineSegments(unitEdges, edgeMaterial);
+          edges.scale.copy(wall.scale);
+          edges.position.copy(wall.position);
+          edges.rotation.copy(wall.rotation);
+          s.content.add(edges);
+        }
       }
       box.expandByPoint(new THREE.Vector3(rect.x, elev + wallHeight, rect.y));
     }
@@ -178,6 +197,7 @@ export function ThreeView(props: Props) {
     const colourOf = { Coordinator: cssColour('--coordinator'), Router: cssColour('--router'), EndDevice: cssColour('--end-device') };
     const sphere = new THREE.SphereGeometry(0.3, 20, 14);
     const cube = new THREE.BoxGeometry(0.55, 0.55, 0.55);
+    const halo3d = new THREE.SphereGeometry(0.6, 20, 14);
     for (const [ieee, at] of position) {
       const device = devices.get(ieee);
       const marker = new THREE.Mesh(
@@ -188,6 +208,13 @@ export function ThreeView(props: Props) {
       if (ieee === selected) marker.scale.setScalar(1.7);
       marker.userData = { ieee, name: device?.name ?? ieee };
       s.content.add(marker);
+      if (holo) {
+        // A soft halo around the marker stands in for bloom, which would cost a render pass.
+        const halo = new THREE.Mesh(halo3d, new THREE.MeshBasicMaterial({ color: (marker.material as THREE.MeshBasicMaterial).color, ...additive, opacity: 0.25 }));
+        halo.position.copy(at);
+        halo.scale.setScalar(ieee === selected ? 1.7 : 1);
+        s.content.add(halo);
+      }
     }
     const qualityColour = { good: cssColour('--good'), fair: cssColour('--fair'), poor: cssColour('--poor'), unknown: cssColour('--unknown') };
     for (const l of links) {
@@ -197,7 +224,10 @@ export function ThreeView(props: Props) {
       const focus = selected !== null && (l.a === selected || l.b === selected);
       const dimmed = selected !== null && !focus;
       const geometry = new THREE.BufferGeometry().setFromPoints([a, b]);
-      const options = { color: qualityColour[l.quality], transparent: true, opacity: dimmed ? 0.12 : focus ? 1 : 0.8 };
+      const options = {
+        color: qualityColour[l.quality], transparent: true, opacity: dimmed ? 0.12 : focus ? 1 : 0.8,
+        ...(holo && { blending: THREE.AdditiveBlending, depthWrite: false }),
+      };
       const line = new THREE.Line(
         geometry,
         l.quality === 'unknown' ? new THREE.LineDashedMaterial({ ...options, dashSize: 0.3, gapSize: 0.4 }) : new THREE.LineBasicMaterial(options),
@@ -220,7 +250,7 @@ export function ThreeView(props: Props) {
       s.controls.update();
     }
     s.render();
-  }, [floors, active, hidden, devices, links, placements, filters, selected]);
+  }, [floors, active, hidden, theme, devices, links, placements, filters, selected]);
 
   return (
     <div className="canvas three" ref={containerRef}>
@@ -228,6 +258,41 @@ export function ThreeView(props: Props) {
       <p className="three-help muted small">Drag to orbit · right-drag to pan · scroll to zoom · click a device</p>
     </div>
   );
+}
+
+/** Longest side a hologram plan texture is drawn at; plenty for a slab, and quick to recolour. */
+const HOLOGRAM_MAX_SIDE = 2048;
+
+/**
+ * The plan recoloured as a hologram: the paper goes black and the drawing's lines glow cyan,
+ * brightest where the drawing is darkest. Starts empty and fills in once the image loads.
+ */
+function hologramTexture(url: string, onLoad: () => void): THREE.Texture {
+  const texture = new THREE.Texture();
+  const image = new Image();
+  image.onload = () => {
+    const scale = Math.min(1, HOLOGRAM_MAX_SIDE / Math.max(image.width, image.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(image.width * scale);
+    canvas.height = Math.round(image.height * scale);
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const d = pixels.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const ink = 255 - (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
+      d[i] = ink * 0.37;
+      d[i + 1] = ink * 0.88;
+      d[i + 2] = ink;
+      d[i + 3] = 255;
+    }
+    ctx.putImageData(pixels, 0, 0);
+    texture.image = canvas;
+    texture.needsUpdate = true;
+    onLoad();
+  };
+  image.src = url;
+  return texture;
 }
 
 /** Removes and frees everything in the group except shared plan textures (cached on the stage). */

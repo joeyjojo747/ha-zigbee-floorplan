@@ -1,5 +1,5 @@
 // Top level: header with levels and scan control, the floorplan (or list view) and the sidebar.
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api, floorImageUrl, type Layout, type NetworkResponse, type Status, type Wall } from './api';
 import { BuildingCanvas, type LinkFilters } from './BuildingCanvas';
 import { alignPatch, floorRect, isSized, rescaleAboutCentre, type Point, type Rect, type ViewMode } from './geometry';
@@ -7,6 +7,7 @@ import { LevelsDialog } from './LevelsDialog';
 import { detectWalls } from './walls';
 import { DeviceDetails, DeviceTray } from './Sidebar';
 import { Tables } from './Tables';
+import { parseThemeChoice, resolveTheme, THEME_CHOICES, THEME_KEY, type ThemeChoice } from './theme';
 
 // three.js is large, so the 3D view loads the first time it's opened.
 const ThreeView = lazy(() => import('./ThreeView').then((m) => ({ default: m.ThreeView })));
@@ -57,6 +58,8 @@ export function App() {
   const [scalePoints, setScalePoints] = useState<Point[] | null>(null);
   const [scaleMetres, setScaleMetres] = useState('');
   const [showLevels, setShowLevels] = useState(false);
+
+  const theme = useTheme();
 
   useEffect(() => remember('view', view), [view]);
   useEffect(() => remember('floor', floorId), [floorId]);
@@ -262,6 +265,7 @@ export function App() {
             {status?.mode === 'fixture' ? 'Offline (captured data)' : status?.connected ? 'MQTT connected' : 'MQTT disconnected'}
           </span>
           <span className="muted small">Last scan: {formatTime(network?.takenAt ?? null)}</span>
+          <ThemeMenu choice={theme.choice} onChange={theme.setChoice} />
           <button onClick={startScan} disabled={!status?.connected || status.scanning}>
             {status?.scanning ? 'Scanning…' : 'Scan now'}
           </button>
@@ -369,6 +373,7 @@ export function App() {
                 floors={layout.floors}
                 active={floor}
                 hidden={hidden}
+                theme={theme.resolved}
                 devices={devices}
                 links={network?.links ?? []}
                 placements={layout.placements}
@@ -383,6 +388,7 @@ export function App() {
                 active={floor}
                 mode={mode}
                 hidden={hidden}
+                theme={theme.resolved}
                 align={align}
                 onAlign={(rect) => floor && setDrafts((d) => ({ ...d, [floor.id]: rect }))}
                 wallEdit={walling}
@@ -435,6 +441,66 @@ export function App() {
       )}
 
       {showLevels && <LevelsDialog layout={layout} onChanged={reloadLayout} onClose={() => setShowLevels(false)} />}
+    </div>
+  );
+}
+
+/** The viewer's theme choice, remembered per browser, and the theme it resolves to (Auto follows the system). */
+function useTheme() {
+  const [choice, setChoice] = useState<ThemeChoice>(() => {
+    try {
+      return parseThemeChoice(localStorage.getItem(THEME_KEY));
+    } catch {
+      return 'auto';
+    }
+  });
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = (e: MediaQueryListEvent) => setSystemDark(e.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+  const resolved = resolveTheme(choice, systemDark);
+  // A layout effect runs before any child's ordinary effect, so the 3D view reads the new theme's colours.
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = resolved;
+  }, [resolved]);
+  useEffect(() => remember('theme', choice), [choice]);
+  return { choice, setChoice, resolved };
+}
+
+function ThemeMenu({ choice, onChange }: { choice: ThemeChoice; onChange: (c: ThemeChoice) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [open]);
+  return (
+    <div className="theme-menu" ref={ref}>
+      <button className={`icon theme-button${open ? ' open' : ''}`} title="Theme" aria-label="Theme" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span className="theme-glyph" aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="menu" role="menu">
+          <div className="menu-title">Theme</div>
+          {THEME_CHOICES.map((c) => (
+            <button key={c.value} role="menuitemradio" aria-checked={choice === c.value} className={choice === c.value ? 'checked' : ''}
+              onClick={() => { onChange(c.value); setOpen(false); }}>
+              {c.label}{choice === c.value && <span aria-hidden="true">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

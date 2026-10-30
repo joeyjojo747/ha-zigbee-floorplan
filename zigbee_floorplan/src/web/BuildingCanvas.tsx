@@ -7,6 +7,7 @@ import {
   buildingToImage, clampFraction, elevations, floorRect, floorTransform, imageToBuilding, isSized, metresPerPx, placementPoint, project,
   rectTransform, resizeFromCorner, shownLevels, type Corner, type Point, type Rect, type SizedFloor, type ViewMode,
 } from './geometry';
+import type { Theme } from './theme';
 
 export interface LinkFilters {
   parentChild: boolean;
@@ -22,6 +23,7 @@ interface Props {
   mode: ViewMode;
   /** Ids of the levels turned off (the active level is drawn regardless). */
   hidden: string[];
+  theme: Theme;
   devices: Map<string, NetworkDevice>;
   links: NetworkLink[];
   placements: Record<string, Placement>;
@@ -304,6 +306,15 @@ export function BuildingCanvas(props: Props) {
                 height={12 * k}
                 strokeWidth={2 * k}
               />
+            ))}
+          </g>
+        )}
+
+        {/* Hologram traces the active level's walls in light, under the links. */}
+        {props.theme === 'hologram' && edit && !align && !wallEdit && (
+          <g className="walls traced" transform={floorTransform(active, z.get(active.id)!, '2d')}>
+            {active.walls.map((w, i) => (
+              <line key={i} className="wall" x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2} strokeWidth={(1.5 * k) / metresPerPx(active)} />
             ))}
           </g>
         )}
