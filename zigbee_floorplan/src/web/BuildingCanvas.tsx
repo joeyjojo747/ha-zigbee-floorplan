@@ -331,7 +331,7 @@ export function BuildingCanvas(props: Props) {
                 <g key={l.id} className={`link ${l.quality}${dimmed ? ' dimmed' : ''}`}>
                   <line
                     x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-                    strokeWidth={(l.parent ? 3 : 2) * (focus ? 1.5 : 1) * k}
+                    strokeWidth={(l.parent ? 3 : 2) * (focus ? 1.5 : 1) * (props.theme === 'hologram' ? 1.6 : 1) * k}
                     strokeDasharray={l.quality === 'unknown' ? `${3 * k} ${5 * k}` : undefined}
                   >
                     <title>{`${name(l.a)} ↔ ${name(l.b)}\n${directions}`}</title>

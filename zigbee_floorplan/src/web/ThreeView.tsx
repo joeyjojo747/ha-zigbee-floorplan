@@ -5,6 +5,9 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { floorImageUrl, type Floor, type NetworkDevice, type NetworkLink, type Placement } from './api';
 import { linkShown, type LinkFilters } from './BuildingCanvas';
 import { elevations, floorRect, imageToBuilding, metresPerPx, placementPoint, shownLevels, type SizedFloor } from './geometry';
@@ -71,6 +74,8 @@ export function ThreeView(props: Props) {
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
       renderer.setSize(width, height);
+      // Fat lines are sized in screen pixels, so they need the new size.
+      content.traverse((o) => (o as Line2).material instanceof LineMaterial && ((o as Line2).material.resolution.set(width, height)));
       camera.aspect = width / Math.max(1, height);
       camera.updateProjectionMatrix();
       render();
@@ -223,13 +228,25 @@ export function ThreeView(props: Props) {
       if (!a || !b || !linkShown(l, filters)) continue;
       const focus = selected !== null && (l.a === selected || l.b === selected);
       const dimmed = selected !== null && !focus;
-      const geometry = new THREE.BufferGeometry().setFromPoints([a, b]);
-      const options = {
-        color: qualityColour[l.quality], transparent: true, opacity: dimmed ? 0.12 : focus ? 1 : 0.8,
-        ...(holo && { blending: THREE.AdditiveBlending, depthWrite: false }),
-      };
+      if (holo) {
+        // WebGL draws plain lines one pixel wide, so hologram links are screen-space fat lines:
+        // a bright core and a wide, faint band that reads as glow.
+        const width = (l.parent ? 3 : 2) * (focus ? 1.5 : 1);
+        const layers = l.quality === 'unknown' ? [[width * 0.75, dimmed ? 0.1 : 0.7]] : [[width, dimmed ? 0.15 : 1], [width * 4, dimmed ? 0.03 : focus ? 0.3 : 0.18]];
+        for (const [linewidth, opacity] of layers) {
+          const fat = new Line2(new LineGeometry().setPositions([a.x, a.y, a.z, b.x, b.y, b.z]), new LineMaterial({
+            color: qualityColour[l.quality].getHex(), linewidth, ...additive, opacity,
+            dashed: l.quality === 'unknown', dashSize: 0.3, gapSize: 0.4,
+            resolution: s.renderer.getSize(new THREE.Vector2()),
+          }));
+          fat.computeLineDistances();
+          s.content.add(fat);
+        }
+        continue;
+      }
+      const options = { color: qualityColour[l.quality], transparent: true, opacity: dimmed ? 0.12 : focus ? 1 : 0.8 };
       const line = new THREE.Line(
-        geometry,
+        new THREE.BufferGeometry().setFromPoints([a, b]),
         l.quality === 'unknown' ? new THREE.LineDashedMaterial({ ...options, dashSize: 0.3, gapSize: 0.4 }) : new THREE.LineBasicMaterial(options),
       );
       line.computeLineDistances();

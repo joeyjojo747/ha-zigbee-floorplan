@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1
+
+- **Hologram**: links are bolder and glow, in 2D and 3D. In 3D they keep the same width on
+  screen however far you zoom out.
+
 ## 0.6.0
 
 - **Themes**: a theme menu in the header (the half-moon button) chooses Auto, Light, Dark

@@ -301,7 +301,7 @@ tr.clickable:hover { background: var(--bg); }
 [data-theme='hologram'] .canvas .links,
 [data-theme='hologram'] .canvas .markers .dot,
 [data-theme='hologram'] .canvas .walls { filter: drop-shadow(0 0 3px currentColor); }
-[data-theme='hologram'] .canvas .links { color: rgb(95 225 255 / 0.6); }
+[data-theme='hologram'] .canvas .links { color: rgb(95 225 255 / 0.6); filter: drop-shadow(0 0 2px currentColor) drop-shadow(0 0 6px currentColor); }
 [data-theme='hologram'] .canvas .walls { color: var(--accent); }
 [data-theme='hologram'] .wall { stroke-opacity: 0.85; }
 .walls.traced { pointer-events: none; }
