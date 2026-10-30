@@ -42,6 +42,8 @@ Shows your Zigbee2MQTT network on your floorplan.
 - **Lines** are the links from the last scan, coloured by the weaker direction's link
   quality (LQI): green good (≥ 100), amber fair (50–99), red poor (< 50), grey dotted
   unmeasured (common for battery devices). Thicker lines are parent–child links.
+- **Names** shows or hides the device names on the map (the selected device is always
+  labelled).
 - **Show** has a chip for each level with a plan: click one to turn that level on or off,
   in 2D and 3D. Levels that are on are drawn faint around the one you're working on,
   which is always shown. **⇅ n** next to a device means it has *n* links to devices on

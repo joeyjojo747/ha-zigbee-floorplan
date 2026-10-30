@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0
+
+- **Names** checkbox next to the link filters shows or hides device names on the map, in
+  2D and 3D (3D now labels every device, not just the one under the pointer). The selected
+  device is always labelled. Remembered per browser.
+
 ## 0.6.1
 
 - **Hologram**: links are bolder and glow, in 2D and 3D. In 3D they keep the same width on

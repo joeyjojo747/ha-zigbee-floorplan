@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
@@ -19,6 +20,8 @@ interface Props {
   /** Ids of the levels turned off (the active level is drawn regardless). */
   hidden: string[];
   theme: Theme;
+  /** Label every device with its name; the selected device is labelled regardless. */
+  showNames: boolean;
   devices: Map<string, NetworkDevice>;
   links: NetworkLink[];
   placements: Record<string, Placement>;
@@ -43,7 +46,7 @@ interface Stage {
 const cssColour = (name: string) => new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888');
 
 export function ThreeView(props: Props) {
-  const { floors, active, hidden, theme, devices, links, placements, filters, selected } = props;
+  const { floors, active, hidden, theme, showNames, devices, links, placements, filters, selected } = props;
   const containerRef = useRef<HTMLDivElement>(null);
   const stage = useRef<Stage | null>(null);
   const fittedKey = useRef('');
@@ -66,7 +69,14 @@ export function ThreeView(props: Props) {
     const controls = new OrbitControls(camera, renderer.domElement);
     const content = new THREE.Group();
     scene.add(content);
-    const render = () => renderer.render(scene, camera);
+    // Device names are HTML laid over the canvas, so they stay crisp and readable at any zoom.
+    const labels = new CSS2DRenderer();
+    labels.domElement.className = 'three-names';
+    el.appendChild(labels.domElement);
+    const render = () => {
+      renderer.render(scene, camera);
+      labels.render(scene, camera);
+    };
     controls.addEventListener('change', render);
     const s: Stage = { renderer, scene, camera, controls, content, textures: new Map(), render };
     stage.current = s;
@@ -74,6 +84,7 @@ export function ThreeView(props: Props) {
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
       renderer.setSize(width, height);
+      labels.setSize(width, height);
       // Fat lines are sized in screen pixels, so they need the new size.
       content.traverse((o) => (o as Line2).material instanceof LineMaterial && ((o as Line2).material.resolution.set(width, height)));
       camera.aspect = width / Math.max(1, height);
@@ -114,6 +125,7 @@ export function ThreeView(props: Props) {
       for (const t of s.textures.values()) t.dispose();
       renderer.dispose();
       el.removeChild(renderer.domElement);
+      el.removeChild(labels.domElement);
       stage.current = null;
     };
   }, []);
@@ -213,6 +225,15 @@ export function ThreeView(props: Props) {
       if (ieee === selected) marker.scale.setScalar(1.7);
       marker.userData = { ieee, name: device?.name ?? ieee };
       s.content.add(marker);
+      if (showNames || ieee === selected) {
+        const div = document.createElement('div');
+        div.className = `three-name${ieee === selected ? ' selected' : ''}`;
+        div.textContent = device?.name ?? ieee;
+        const label = new CSS2DObject(div);
+        label.position.copy(at);
+        label.center.set(0.5, -0.6); // just below the marker
+        s.content.add(label);
+      }
       if (holo) {
         // A soft halo around the marker stands in for bloom, which would cost a render pass.
         const halo = new THREE.Mesh(halo3d, new THREE.MeshBasicMaterial({ color: (marker.material as THREE.MeshBasicMaterial).color, ...additive, opacity: 0.25 }));
@@ -267,11 +288,11 @@ export function ThreeView(props: Props) {
       s.controls.update();
     }
     s.render();
-  }, [floors, active, hidden, theme, devices, links, placements, filters, selected]);
+  }, [floors, active, hidden, theme, showNames, devices, links, placements, filters, selected]);
 
   return (
     <div className="canvas three" ref={containerRef}>
-      {hover && <div className="three-label" style={{ left: hover.x + 12, top: hover.y + 12 }}>{hover.name}</div>}
+      {hover && !showNames && <div className="three-label" style={{ left: hover.x + 12, top: hover.y + 12 }}>{hover.name}</div>}
       <p className="three-help muted small">Drag to orbit · right-drag to pan · scroll to zoom · click a device</p>
     </div>
   );

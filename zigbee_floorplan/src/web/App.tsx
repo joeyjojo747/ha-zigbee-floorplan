@@ -53,6 +53,7 @@ export function App() {
   const [detecting, setDetecting] = useState(false);
   const [floorId, setFloorId] = useState<string | null>(() => remembered('floor', null));
   const [filters, setFilters] = useState<LinkFilters>(() => remembered('filters', { parentChild: true, neighbours: true, unmeasured: true }));
+  const [showNames, setShowNames] = useState<boolean>(() => remembered('names', true));
   const [selected, setSelected] = useState<string | null>(null);
   const [placing, setPlacing] = useState<string | null>(null);
   const [scalePoints, setScalePoints] = useState<Point[] | null>(null);
@@ -64,6 +65,7 @@ export function App() {
   useEffect(() => remember('view', view), [view]);
   useEffect(() => remember('floor', floorId), [floorId]);
   useEffect(() => remember('filters', filters), [filters]);
+  useEffect(() => remember('names', showNames), [showNames]);
   useEffect(() => remember('mode', mode), [mode]);
   useEffect(() => remember('hidden', hidden), [hidden]);
   useEffect(() => {
@@ -316,7 +318,7 @@ export function App() {
                   )
                 ) : (
                   <>
-                    <Legend filters={filters} onChange={setFilters} />
+                    <Legend filters={filters} onChange={setFilters} showNames={showNames} onShowNames={setShowNames} />
                     <div className="view-controls">
                       <span className="segmented" role="group" aria-label="View">
                         {(['2d', '3d'] as const).map((m) => (
@@ -374,6 +376,7 @@ export function App() {
                 active={floor}
                 hidden={hidden}
                 theme={theme.resolved}
+                showNames={showNames}
                 devices={devices}
                 links={network?.links ?? []}
                 placements={layout.placements}
@@ -389,6 +392,7 @@ export function App() {
                 mode={mode}
                 hidden={hidden}
                 theme={theme.resolved}
+                showNames={showNames}
                 align={align}
                 onAlign={(rect) => floor && setDrafts((d) => ({ ...d, [floor.id]: rect }))}
                 wallEdit={walling}
@@ -505,7 +509,9 @@ function ThemeMenu({ choice, onChange }: { choice: ThemeChoice; onChange: (c: Th
   );
 }
 
-function Legend({ filters, onChange }: { filters: LinkFilters; onChange: (f: LinkFilters) => void }) {
+function Legend({ filters, onChange, showNames, onShowNames }: {
+  filters: LinkFilters; onChange: (f: LinkFilters) => void; showNames: boolean; onShowNames: (on: boolean) => void;
+}) {
   const toggle = (key: keyof LinkFilters) => onChange({ ...filters, [key]: !filters[key] });
   return (
     <div className="legend">
@@ -516,6 +522,7 @@ function Legend({ filters, onChange }: { filters: LinkFilters; onChange: (f: Lin
       <label><input type="checkbox" checked={filters.parentChild} onChange={() => toggle('parentChild')} /> Parent–child</label>
       <label><input type="checkbox" checked={filters.neighbours} onChange={() => toggle('neighbours')} /> Router neighbours</label>
       <label><input type="checkbox" checked={filters.unmeasured} onChange={() => toggle('unmeasured')} /> Unmeasured</label>
+      <label><input type="checkbox" checked={showNames} onChange={() => onShowNames(!showNames)} /> Names</label>
     </div>
   );
 }

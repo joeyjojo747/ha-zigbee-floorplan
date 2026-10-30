@@ -24,6 +24,8 @@ interface Props {
   /** Ids of the levels turned off (the active level is drawn regardless). */
   hidden: string[];
   theme: Theme;
+  /** Label every device with its name; the selected device is labelled regardless. */
+  showNames: boolean;
   devices: Map<string, NetworkDevice>;
   links: NetworkLink[];
   placements: Record<string, Placement>;
@@ -379,7 +381,9 @@ export function BuildingCanvas(props: Props) {
                   {device?.type === 'Coordinator'
                     ? <rect className="dot" x={-r} y={-r} width={r * 2} height={r * 2} rx={3 * k} strokeWidth={2 * k} />
                     : <circle className="dot" r={r} strokeWidth={2 * k} />}
-                  <text y={r + 13 * k} fontSize={12 * k} strokeWidth={3 * k} className="halo" textAnchor="middle">{name(ieee)}</text>
+                  {(props.showNames || selected === ieee) && (
+                    <text y={r + 13 * k} fontSize={12 * k} strokeWidth={3 * k} className="halo" textAnchor="middle">{name(ieee)}</text>
+                  )}
                   {cross && (
                     <text x={r + 3 * k} y={-r} fontSize={11 * k} strokeWidth={3 * k} className="halo cross">
                       ⇅{cross}
